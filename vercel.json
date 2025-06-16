@@ -1,10 +1,7 @@
 {
   "version": 2,
-  "env": {
-    "NODE_ENV": "production"
-  },
   "functions": {
-    "server.js": {
+    "api/server.js": {
       "maxDuration": 30
     }
   },
@@ -17,61 +14,37 @@
       }
     },
     {
-      "src": "server.js",
+      "src": "api/server.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/server.js",
-      "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+      "dest": "/api/server.js"
     },
     {
       "src": "/assets/(.*)",
       "headers": {
         "cache-control": "public, max-age=31536000, immutable"
-      },
-      "dest": "/dist/assets/$1"
+      }
     },
     {
       "src": "/(sw\\.js|workbox-.*\\.js|registerSW\\.js)",
       "headers": {
         "cache-control": "public, max-age=0, must-revalidate",
         "service-worker-allowed": "/"
-      },
-      "dest": "/dist/$1"
+      }
     },
     {
       "src": "/(manifest\\.json|icon-.*\\.png|favicon\\.ico)",
       "headers": {
         "cache-control": "public, max-age=86400"
-      },
-      "dest": "/dist/$1"
-    },
-    {
-      "src": "/login",
-      "dest": "/dist/index.html"
-    },
-    {
-      "src": "/register",
-      "dest": "/dist/index.html"
-    },
-    {
-      "src": "/admin-login",
-      "dest": "/dist/index.html"
-    },
-    {
-      "src": "/admin/(.*)",
-      "dest": "/dist/index.html"
-    },
-    {
-      "src": "/student/(.*)",
-      "dest": "/dist/index.html"
+      }
     },
     {
       "src": "/(.*)",
-      "dest": "/dist/index.html"
+      "dest": "/index.html"
     }
   ]
 }

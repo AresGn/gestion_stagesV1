@@ -12,6 +12,7 @@
     "db:test": "node test-db-connection.js",
     "db:check": "node -e \"import('./src/config/db.js')\"",
     "build": "vite build",
+    "vercel-build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "npm run server:start",

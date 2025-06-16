@@ -1,0 +1,100 @@
+# Development files
+node_modules
+.env
+.env.local
+.env.development
+.env.test
+
+# Build files (except dist which is needed)
+.vite
+.cache
+
+# Test files
+test-*.js
+*test*.js
+*.test.js
+*.spec.js
+
+# Documentation
+*.md
+!README.md
+
+# Development scripts
+start-*.js
+restart-*.js
+clean-*.js
+diagnose-*.js
+
+# Development configs
+.eslintrc*
+eslint.config.js
+vite.config.js.timestamp-*
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+*.lcov
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.parcel-cache
+
+# next.js build output
+.next
+
+# nuxt.js build output
+.nuxt
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
