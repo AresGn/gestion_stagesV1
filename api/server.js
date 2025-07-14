@@ -395,14 +395,13 @@ const setupRoutes = async () => {
             ps.titre,
             ps.description,
             ps.entreprise_id,
-            ps.duree_mois,
+            ps.duree,
             ps.remuneration,
             ps.competences_requises,
             ps.date_limite_candidature,
             ps.statut,
             ps.created_at,
             e.nom as entreprise_nom,
-            e.secteur_activite,
             e.ville
           FROM public.propositions_stages ps
           LEFT JOIN public.entreprises e ON ps.entreprise_id = e.id
@@ -444,7 +443,6 @@ const setupRoutes = async () => {
           SELECT
             s.*,
             e.nom as entreprise_nom,
-            e.secteur_activite,
             e.ville as entreprise_ville
           FROM public.stages s
           LEFT JOIN public.entreprises e ON s.entreprise_id = e.id
