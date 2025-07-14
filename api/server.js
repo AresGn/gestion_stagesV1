@@ -109,60 +109,181 @@ const setupRoutes = async () => {
 
     console.log('✅ Variables d\'environnement OK');
 
-    // Import conditionnel des routes
-    try {
-      const authRoutesModule = await import('../src/routes/auth.js');
-      if (authRoutesModule && authRoutesModule.default) {
-        app.use('/api/auth', authRoutesModule.default);
-        console.log('[Vercel] /api/auth routes configured.');
-      } else {
-        console.error('[Vercel] authRoutesModule.default not found');
-      }
-    } catch (error) {
-      console.error('[Vercel] Erreur import auth routes:', error.message);
-      console.error('[Vercel] Stack trace:', error.stack);
-    }
+    // Créer les routes d'authentification directement ici pour éviter les problèmes d'import
+    const authRouter = express.Router();
 
-    // Import des autres routes
-    try {
-      const adminRoutesModule = await import('../src/routes/admin.js');
-      if (adminRoutesModule && adminRoutesModule.default) {
-        app.use('/api/admin', adminRoutesModule.default);
-        console.log('[Vercel] /api/admin routes configured.');
-      }
-    } catch (error) {
-      console.error('[Vercel] Erreur import admin routes:', error.message);
-    }
+    // Route de test pour l'authentification
+    authRouter.get('/', (req, res) => {
+      res.json({
+        success: true,
+        message: 'Routes d\'authentification disponibles',
+        routes: ['/login', '/admin/login', '/register', '/me']
+      });
+    });
 
-    try {
-      const internshipsRoutesModule = await import('../src/routes/internships.js');
-      if (internshipsRoutesModule && internshipsRoutesModule.default) {
-        app.use('/api/internships', internshipsRoutesModule.default);
-        console.log('[Vercel] /api/internships routes configured.');
-      }
-    } catch (error) {
-      console.error('[Vercel] Erreur import internships routes:', error.message);
-    }
+    // Route de login simple pour test
+    authRouter.post('/login', async (req, res) => {
+      try {
+        console.log('[Vercel] Login attempt:', req.body);
 
-    try {
-      const notificationsRoutesModule = await import('../src/routes/notifications.js');
-      if (notificationsRoutesModule && notificationsRoutesModule.default) {
-        app.use('/api/notifications', notificationsRoutesModule.default);
-        console.log('[Vercel] /api/notifications routes configured.');
-      }
-    } catch (error) {
-      console.error('[Vercel] Erreur import notifications routes:', error.message);
-    }
+        // Import dynamique de la configuration DB
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
 
-    try {
-      const projetsPublicsRoutesModule = await import('../src/routes/projetsPublics.js');
-      if (projetsPublicsRoutesModule && projetsPublicsRoutesModule.default) {
-        app.use('/api', projetsPublicsRoutesModule.default);
-        console.log('[Vercel] /api projets publics routes configured.');
+        const { matricule, password } = req.body;
+
+        if (!matricule || !password) {
+          return res.status(400).json({
+            success: false,
+            message: 'Matricule et mot de passe requis'
+          });
+        }
+
+        // Test de connexion DB
+        const testResult = await db.query('SELECT COUNT(*) FROM public.utilisateurs');
+        console.log('[Vercel] DB test - Nombre d\'utilisateurs:', testResult.rows[0].count);
+
+        // Recherche utilisateur
+        const { rows: users } = await db.query(
+          'SELECT * FROM public.utilisateurs WHERE matricule = $1',
+          [matricule.trim()]
+        );
+
+        if (users.length === 0) {
+          return res.status(401).json({
+            success: false,
+            message: 'Identifiants invalides'
+          });
+        }
+
+        // Import bcrypt et jwt
+        const bcrypt = await import('bcrypt');
+        const jwt = await import('jsonwebtoken');
+
+        const user = users[0];
+        const isMatch = await bcrypt.default.compare(password, user.mot_de_passe);
+
+        if (!isMatch) {
+          return res.status(401).json({
+            success: false,
+            message: 'Identifiants invalides'
+          });
+        }
+
+        // Générer token
+        const token = jwt.default.sign(
+          { id: user.id, role: user.role },
+          process.env.JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+
+        const userData = {...user};
+        delete userData.mot_de_passe;
+
+        res.json({
+          success: true,
+          message: 'Connexion réussie',
+          token,
+          user: userData
+        });
+
+      } catch (error) {
+        console.error('[Vercel] Login error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la connexion',
+          error: error.message
+        });
       }
-    } catch (error) {
-      console.error('[Vercel] Erreur import projets publics routes:', error.message);
-    }
+    });
+
+    // Route d'admin login
+    authRouter.post('/admin/login', async (req, res) => {
+      try {
+        console.log('[Vercel] Admin login attempt:', req.body);
+
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { matricule, password } = req.body;
+
+        if (!matricule || !password) {
+          return res.status(400).json({
+            success: false,
+            message: 'Matricule et mot de passe requis'
+          });
+        }
+
+        // Recherche admin dans la table administrateurs
+        const { rows: admins } = await db.query(
+          'SELECT * FROM public.administrateurs WHERE matricule = $1',
+          [matricule.trim()]
+        );
+
+        let user = null;
+        if (admins.length > 0) {
+          user = admins[0];
+        } else {
+          // Recherche dans la table utilisateurs avec rôle admin
+          const { rows: adminUsers } = await db.query(
+            'SELECT * FROM public.utilisateurs WHERE matricule = $1 AND role = $2',
+            [matricule.trim(), 'admin']
+          );
+
+          if (adminUsers.length > 0) {
+            user = adminUsers[0];
+          }
+        }
+
+        if (!user) {
+          return res.status(401).json({
+            success: false,
+            message: 'Matricule ou mot de passe incorrect'
+          });
+        }
+
+        const bcrypt = await import('bcrypt');
+        const jwt = await import('jsonwebtoken');
+
+        const isMatch = await bcrypt.default.compare(password, user.mot_de_passe);
+
+        if (!isMatch) {
+          return res.status(401).json({
+            success: false,
+            message: 'Matricule ou mot de passe incorrect'
+          });
+        }
+
+        const token = jwt.default.sign(
+          { id: user.id, role: 'admin', matricule: user.matricule },
+          process.env.JWT_SECRET,
+          { expiresIn: '12h' }
+        );
+
+        res.json({
+          success: true,
+          message: 'Connexion réussie',
+          token,
+          user: {
+            id: user.id,
+            matricule: user.matricule,
+            role: 'admin'
+          }
+        });
+
+      } catch (error) {
+        console.error('[Vercel] Admin login error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la connexion',
+          error: error.message
+        });
+      }
+    });
+
+    // Configurer les routes d'authentification
+    app.use('/api/auth', authRouter);
+    console.log('[Vercel] /api/auth routes configured directly.');
 
   } catch (error) {
     console.error('[Vercel] Error setting up routes:', error);
