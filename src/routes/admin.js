@@ -106,7 +106,7 @@ router.post('/debug', async (req, res) => {
  * GET /api/admin/notifications
  * Récupérer toutes les notifications avec détails utilisateurs
  */
-router.get('/notifications', protect, requireRole('admin'), async (req, res) => {
+router.get('/notifications', protect, restrictTo('admin'), async (req, res) => {
   try {
     const { rows: notifications } = await db.query(`
       SELECT

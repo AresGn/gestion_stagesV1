@@ -18,11 +18,15 @@ const pool = new pg.Pool({
   ssl: {
     rejectUnauthorized: false // Nécessaire pour Neon
   },
-  max: 20, // Nombre maximum de connexions (Neon supporte jusqu'à 100)
-  min: 2, // Nombre minimum de connexions maintenues
-  idleTimeoutMillis: 30000, // 30 secondes avant de fermer une connexion inactive
-  connectionTimeoutMillis: 10000, // 10 secondes pour établir une connexion
-  acquireTimeoutMillis: 60000, // 60 secondes pour acquérir une connexion du pool
+  max: 10, // Réduit le nombre de connexions
+  min: 1, // Minimum de connexions
+  idleTimeoutMillis: 20000, // 20 secondes avant de fermer une connexion inactive
+  connectionTimeoutMillis: 8000, // 8 secondes pour établir une connexion
+  acquireTimeoutMillis: 15000, // 15 secondes pour acquérir une connexion du pool
+  statement_timeout: 30000, // 30 secondes pour les requêtes
+  query_timeout: 30000, // 30 secondes pour les requêtes
+  keepAlive: true, // Maintenir les connexions actives
+  keepAliveInitialDelayMillis: 10000, // Délai initial pour keep-alive
 });
 
 // Configuration du search_path pour utiliser le schéma public par défaut
@@ -58,7 +62,8 @@ const testConnection = async () => {
   } catch (err) {
     console.error('❌ Erreur de connexion à PostgreSQL:', err.message);
     console.error('🔍 Détails:', err);
-    process.exit(1);
+    console.log('⚠️  Le serveur continue sans connexion DB - les requêtes échoueront');
+    // Ne pas arrêter le serveur, permettre le démarrage sans DB
   }
 };
 
@@ -67,25 +72,30 @@ testConnection();
 
 // Helper pour exécuter les requêtes plus facilement avec gestion d'erreurs améliorée
 const query = async (text, params) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     const start = Date.now();
     const result = await client.query(text, params);
     const duration = Date.now() - start;
 
-    // Log des requêtes en mode développement
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🔍 Requête exécutée en ${duration}ms:`, text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+    // Log des requêtes en mode développement (moins verbeux)
+    if (process.env.NODE_ENV === 'development' && duration > 1000) {
+      console.log(`⚠️ Requête lente (${duration}ms):`, text.substring(0, 50) + '...');
     }
 
     return result;
   } catch (error) {
-    console.error('❌ Erreur lors de l\'exécution de la requête:', error.message);
-    console.error('📝 Requête:', text);
-    console.error('📋 Paramètres:', params);
+    console.error('❌ Erreur DB:', error.message);
+    // Ne pas logger les détails en production pour éviter le spam
+    if (process.env.NODE_ENV === 'development') {
+      console.error('📝 Requête:', text.substring(0, 100) + '...');
+    }
     throw error;
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 };
 
