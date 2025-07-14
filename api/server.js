@@ -281,9 +281,305 @@ const setupRoutes = async () => {
       }
     });
 
+    // Route /me pour récupérer les informations de l'utilisateur connecté
+    authRouter.get('/me', async (req, res) => {
+      try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return res.status(401).json({
+            success: false,
+            message: 'Token manquant'
+          });
+        }
+
+        const token = authHeader.substring(7);
+        const jwt = await import('jsonwebtoken');
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        // Pour les admins, chercher d'abord dans la table administrateurs
+        if (decoded.role === 'admin') {
+          const { rows: admins } = await db.query(
+            'SELECT id, matricule FROM public.administrateurs WHERE matricule = $1',
+            [decoded.matricule]
+          );
+
+          if (admins.length > 0) {
+            return res.status(200).json({
+              success: true,
+              data: {
+                id: admins[0].id,
+                matricule: admins[0].matricule,
+                role: 'admin'
+              }
+            });
+          }
+        }
+
+        // Pour tous les autres utilisateurs ou admins non trouvés dans administrateurs
+        if (decoded.id) {
+          const { rows: users } = await db.query(
+            'SELECT id, nom, prenom, email, matricule, telephone, filiere_id, role FROM public.utilisateurs WHERE id = $1',
+            [decoded.id]
+          );
+
+          if (users.length === 0) {
+            return res.status(404).json({
+              success: false,
+              message: 'Utilisateur non trouvé'
+            });
+          }
+
+          return res.status(200).json({
+            success: true,
+            data: users[0]
+          });
+        } else {
+          return res.status(404).json({
+            success: false,
+            message: 'Informations utilisateur incomplètes'
+          });
+        }
+      } catch (error) {
+        console.error('[Vercel] /me error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des informations utilisateur',
+          error: error.message
+        });
+      }
+    });
+
     // Configurer les routes d'authentification
     app.use('/api/auth', authRouter);
     console.log('[Vercel] /api/auth routes configured directly.');
+
+    // Créer les routes pour les stages/internships
+    const internshipsRouter = express.Router();
+
+    // Middleware d'authentification pour les routes internships
+    const authenticateToken = async (req, res, next) => {
+      try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return res.status(401).json({
+            success: false,
+            message: 'Token manquant'
+          });
+        }
+
+        const token = authHeader.substring(7);
+        const jwt = await import('jsonwebtoken');
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+      } catch (error) {
+        return res.status(401).json({
+          success: false,
+          message: 'Token invalide'
+        });
+      }
+    };
+
+    // Route pour récupérer les offres de stage
+    internshipsRouter.get('/offers', authenticateToken, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: offers } = await db.query(`
+          SELECT
+            ps.id,
+            ps.titre,
+            ps.description,
+            ps.entreprise_id,
+            ps.duree_mois,
+            ps.remuneration,
+            ps.competences_requises,
+            ps.date_limite_candidature,
+            ps.statut,
+            ps.created_at,
+            e.nom as entreprise_nom,
+            e.secteur_activite,
+            e.ville
+          FROM public.propositions_stages ps
+          LEFT JOIN public.entreprises e ON ps.entreprise_id = e.id
+          WHERE ps.statut = 'active'
+          ORDER BY ps.created_at DESC
+        `);
+
+        res.json({
+          success: true,
+          data: offers
+        });
+      } catch (error) {
+        console.error('[Vercel] Offers error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des offres de stage',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour récupérer les informations de stage d'un utilisateur
+    internshipsRouter.get('/user/:userId', authenticateToken, async (req, res) => {
+      try {
+        const userId = req.params.userId;
+
+        // Vérifier si l'utilisateur est autorisé
+        if (req.user.id != userId && req.user.role !== 'admin') {
+          return res.status(403).json({
+            success: false,
+            message: 'Non autorisé à accéder à ces informations'
+          });
+        }
+
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: internships } = await db.query(`
+          SELECT
+            s.*,
+            e.nom as entreprise_nom,
+            e.secteur_activite,
+            e.ville as entreprise_ville
+          FROM public.stages s
+          LEFT JOIN public.entreprises e ON s.entreprise_id = e.id
+          WHERE s.etudiant_id = $1
+          ORDER BY s.created_at DESC
+        `, [userId]);
+
+        res.json({
+          success: true,
+          data: internships
+        });
+      } catch (error) {
+        console.error('[Vercel] User internships error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des informations de stage',
+          error: error.message
+        });
+      }
+    });
+
+    app.use('/api/internships', internshipsRouter);
+    console.log('[Vercel] /api/internships routes configured.');
+
+    // Créer les routes admin de base
+    const adminRouter = express.Router();
+
+    // Middleware pour vérifier le rôle admin
+    const requireAdmin = async (req, res, next) => {
+      try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return res.status(401).json({
+            success: false,
+            message: 'Token manquant'
+          });
+        }
+
+        const token = authHeader.substring(7);
+        const jwt = await import('jsonwebtoken');
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+
+        if (decoded.role !== 'admin') {
+          return res.status(403).json({
+            success: false,
+            message: 'Accès refusé - Droits administrateur requis'
+          });
+        }
+
+        req.user = decoded;
+        next();
+      } catch (error) {
+        return res.status(401).json({
+          success: false,
+          message: 'Token invalide'
+        });
+      }
+    };
+
+    // Route pour les statistiques générales
+    adminRouter.get('/statistiques', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        // Statistiques de base
+        const [
+          { rows: [{ count: totalEtudiants }] },
+          { rows: [{ count: totalStages }] },
+          { rows: [{ count: totalEntreprises }] },
+          { rows: [{ count: totalOffres }] }
+        ] = await Promise.all([
+          db.query('SELECT COUNT(*) FROM public.utilisateurs WHERE role = $1', ['etudiant']),
+          db.query('SELECT COUNT(*) FROM public.stages'),
+          db.query('SELECT COUNT(*) FROM public.entreprises'),
+          db.query('SELECT COUNT(*) FROM public.propositions_stages WHERE statut = $1', ['active'])
+        ]);
+
+        res.json({
+          success: true,
+          data: {
+            totalEtudiants: parseInt(totalEtudiants),
+            totalStages: parseInt(totalStages),
+            totalEntreprises: parseInt(totalEntreprises),
+            totalOffres: parseInt(totalOffres)
+          }
+        });
+      } catch (error) {
+        console.error('[Vercel] Admin stats error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des statistiques',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour lister les étudiants
+    adminRouter.get('/etudiants', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: etudiants } = await db.query(`
+          SELECT
+            u.id,
+            u.nom,
+            u.prenom,
+            u.matricule,
+            u.email,
+            u.telephone,
+            u.created_at,
+            f.nom as filiere_nom
+          FROM public.utilisateurs u
+          LEFT JOIN public.filieres f ON u.filiere_id = f.id
+          WHERE u.role = 'etudiant'
+          ORDER BY u.nom, u.prenom
+        `);
+
+        res.json({
+          success: true,
+          data: etudiants
+        });
+      } catch (error) {
+        console.error('[Vercel] Admin etudiants error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des étudiants',
+          error: error.message
+        });
+      }
+    });
+
+    app.use('/api/admin', adminRouter);
+    console.log('[Vercel] /api/admin routes configured.');
 
   } catch (error) {
     console.error('[Vercel] Error setting up routes:', error);
