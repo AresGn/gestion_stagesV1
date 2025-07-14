@@ -52,6 +52,32 @@ app.get('/api/test', (req, res) => {
   });
 });
 
+// Route de debug pour tester les imports
+app.get('/api/debug', async (req, res) => {
+  const debugInfo = {
+    success: true,
+    message: 'Debug info',
+    timestamp: new Date().toISOString(),
+    imports: {}
+  };
+
+  try {
+    const authRoutesModule = await import('../src/routes/auth.js');
+    debugInfo.imports.auth = {
+      imported: true,
+      hasDefault: !!authRoutesModule.default,
+      type: typeof authRoutesModule.default
+    };
+  } catch (error) {
+    debugInfo.imports.auth = {
+      imported: false,
+      error: error.message
+    };
+  }
+
+  res.json(debugInfo);
+});
+
 // Route de test pour les variables d'environnement
 app.get('/api/env-check', (req, res) => {
   res.json({
@@ -89,9 +115,53 @@ const setupRoutes = async () => {
       if (authRoutesModule && authRoutesModule.default) {
         app.use('/api/auth', authRoutesModule.default);
         console.log('[Vercel] /api/auth routes configured.');
+      } else {
+        console.error('[Vercel] authRoutesModule.default not found');
       }
     } catch (error) {
       console.error('[Vercel] Erreur import auth routes:', error.message);
+      console.error('[Vercel] Stack trace:', error.stack);
+    }
+
+    // Import des autres routes
+    try {
+      const adminRoutesModule = await import('../src/routes/admin.js');
+      if (adminRoutesModule && adminRoutesModule.default) {
+        app.use('/api/admin', adminRoutesModule.default);
+        console.log('[Vercel] /api/admin routes configured.');
+      }
+    } catch (error) {
+      console.error('[Vercel] Erreur import admin routes:', error.message);
+    }
+
+    try {
+      const internshipsRoutesModule = await import('../src/routes/internships.js');
+      if (internshipsRoutesModule && internshipsRoutesModule.default) {
+        app.use('/api/internships', internshipsRoutesModule.default);
+        console.log('[Vercel] /api/internships routes configured.');
+      }
+    } catch (error) {
+      console.error('[Vercel] Erreur import internships routes:', error.message);
+    }
+
+    try {
+      const notificationsRoutesModule = await import('../src/routes/notifications.js');
+      if (notificationsRoutesModule && notificationsRoutesModule.default) {
+        app.use('/api/notifications', notificationsRoutesModule.default);
+        console.log('[Vercel] /api/notifications routes configured.');
+      }
+    } catch (error) {
+      console.error('[Vercel] Erreur import notifications routes:', error.message);
+    }
+
+    try {
+      const projetsPublicsRoutesModule = await import('../src/routes/projetsPublics.js');
+      if (projetsPublicsRoutesModule && projetsPublicsRoutesModule.default) {
+        app.use('/api', projetsPublicsRoutesModule.default);
+        console.log('[Vercel] /api projets publics routes configured.');
+      }
+    } catch (error) {
+      console.error('[Vercel] Erreur import projets publics routes:', error.message);
     }
 
   } catch (error) {

@@ -39,27 +39,27 @@ router.post('/register', [
 
     // Check if user already exists with matricule
     const { rows: existingUsers } = await query(
-      'SELECT * FROM public.utilisateurs WHERE matricule = $1', 
+      'SELECT * FROM public.utilisateurs WHERE matricule = $1',
       [matricule]
     );
-    
+
     // Vérifie l'email seulement si il est fourni
     if (email && email.trim() !== '') {
       const { rows: existingEmails } = await query(
-        'SELECT * FROM public.utilisateurs WHERE email = $2', 
+        'SELECT * FROM public.utilisateurs WHERE email = $1',
         [email]
       );
-      
+
       if (existingEmails.length > 0) {
-        return res.status(400).json({ 
-          message: 'Un utilisateur avec cet email existe déjà' 
+        return res.status(400).json({
+          message: 'Un utilisateur avec cet email existe déjà'
         });
       }
     }
 
     if (existingUsers.length > 0) {
-      return res.status(400).json({ 
-        message: 'Un utilisateur avec ce matricule existe déjà' 
+      return res.status(400).json({
+        message: 'Un utilisateur avec ce matricule existe déjà'
       });
     }
 
@@ -69,13 +69,13 @@ router.post('/register', [
 
     // Insert user
     const { rows: result } = await query(
-      'INSERT INTO public.utilisateurs (nom, prenom, telephone, email, matricule, filiere_id, mot_de_passe, whatsapp) VALUES ($3, $4, $5, $6, $7, $8, $9, $10)',
+      'INSERT INTO public.utilisateurs (nom, prenom, telephone, email, matricule, filiere_id, mot_de_passe, whatsapp) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
       [nom, prenom, telephone, email || null, matricule, filiere_id, hashedPassword, whatsapp || null]
     );
 
     // Generate JWT
     const token = jwt.sign(
-      { id: result.rows[0].id, role: 'etudiant' },
+      { id: result[0].id, role: 'etudiant' },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRE }
     );
