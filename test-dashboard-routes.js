@@ -98,7 +98,14 @@ async function main() {
     console.log('\n👑 === TESTS ROUTES ADMIN ===');
     await testRoute(`${BASE_URL}/api/auth/me`, adminToken, 'Informations admin (/me)');
     await testRoute(`${BASE_URL}/api/admin/statistiques`, adminToken, 'Statistiques générales');
+    await testRoute(`${BASE_URL}/api/admin/statistiques/filiere`, adminToken, 'Statistiques par filière');
+    await testRoute(`${BASE_URL}/api/admin/statistiques/entreprise`, adminToken, 'Statistiques par entreprise');
+    await testRoute(`${BASE_URL}/api/admin/activites`, adminToken, 'Activités récentes');
+    await testRoute(`${BASE_URL}/api/admin/parametres/filiere`, adminToken, 'Paramètres par filière');
     await testRoute(`${BASE_URL}/api/admin/etudiants`, adminToken, 'Liste des étudiants');
+    await testRoute(`${BASE_URL}/api/admin/propositions`, adminToken, 'Propositions de stage');
+    await testRoute(`${BASE_URL}/api/admin/propositions-themes`, adminToken, 'Propositions de thèmes');
+    await testRoute(`${BASE_URL}/api/admin/notifications`, adminToken, 'Notifications admin');
   }
   
   console.log('\n🎉 Tests terminés !');

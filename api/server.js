@@ -540,13 +540,47 @@ const setupRoutes = async () => {
       }
     });
 
-    // Route pour lister les étudiants
+    // Route pour lister les étudiants avec pagination
     adminRouter.get('/etudiants', requireAdmin, async (req, res) => {
       try {
         const dbModule = await import('../src/config/db.js');
         const db = dbModule.default;
 
-        const { rows: etudiants } = await db.query(`
+        // Paramètres de pagination
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        // Filtres
+        const filiere = req.query.filiere;
+        const search = req.query.search;
+
+        let whereClause = "WHERE u.role = 'etudiant'";
+        let queryParams = [];
+        let paramIndex = 1;
+
+        if (filiere && filiere !== 'all') {
+          whereClause += ` AND u.filiere_id = $${paramIndex}`;
+          queryParams.push(filiere);
+          paramIndex++;
+        }
+
+        if (search) {
+          whereClause += ` AND (u.nom ILIKE $${paramIndex} OR u.prenom ILIKE $${paramIndex} OR u.matricule ILIKE $${paramIndex})`;
+          queryParams.push(`%${search}%`);
+          paramIndex++;
+        }
+
+        // Requête pour compter le total
+        const countQuery = `
+          SELECT COUNT(*) as total
+          FROM public.utilisateurs u
+          LEFT JOIN public.filieres f ON u.filiere_id = f.id
+          ${whereClause}
+        `;
+
+        // Requête pour récupérer les étudiants
+        const dataQuery = `
           SELECT
             u.id,
             u.nom,
@@ -555,16 +589,38 @@ const setupRoutes = async () => {
             u.email,
             u.telephone,
             u.created_at,
+            u.filiere_id,
             f.nom as filiere_nom
           FROM public.utilisateurs u
           LEFT JOIN public.filieres f ON u.filiere_id = f.id
-          WHERE u.role = 'etudiant'
+          ${whereClause}
           ORDER BY u.nom, u.prenom
-        `);
+          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+
+        queryParams.push(limit, offset);
+
+        const [countResult, dataResult] = await Promise.all([
+          db.query(countQuery, queryParams.slice(0, -2)),
+          db.query(dataQuery, queryParams)
+        ]);
+
+        const total = parseInt(countResult.rows[0].total);
+        const totalPages = Math.ceil(total / limit);
 
         res.json({
           success: true,
-          data: etudiants
+          data: {
+            etudiants: dataResult.rows,
+            pagination: {
+              page,
+              limit,
+              total,
+              totalPages,
+              hasNext: page < totalPages,
+              hasPrev: page > 1
+            }
+          }
         });
       } catch (error) {
         console.error('[Vercel] Admin etudiants error:', error);
@@ -801,6 +857,109 @@ const setupRoutes = async () => {
         res.status(500).json({
           success: false,
           message: 'Erreur lors de la récupération des notifications',
+          error: error.message
+        });
+      }
+    });
+
+    // Routes pour les projets réalisés
+    adminRouter.get('/projets-realises', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: projets } = await db.query(`
+          SELECT
+            pr.*,
+            u.nom as etudiant_nom,
+            u.prenom as etudiant_prenom,
+            u.matricule as etudiant_matricule,
+            f.nom as filiere_nom
+          FROM public.projets_realises pr
+          LEFT JOIN public.utilisateurs u ON pr.etudiant_id = u.id
+          LEFT JOIN public.filieres f ON u.filiere_id = f.id
+          ORDER BY pr.created_at DESC
+        `);
+
+        res.json({
+          success: true,
+          data: projets
+        });
+      } catch (error) {
+        console.error('[Vercel] Projets realises error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des projets réalisés',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour créer un projet réalisé
+    adminRouter.post('/projets-realises', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { titre, description, etudiant_id, technologies, url_demo, url_repo } = req.body;
+
+        const { rows: result } = await db.query(`
+          INSERT INTO public.projets_realises
+          (titre, description, etudiant_id, technologies, url_demo, url_repo, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          RETURNING *
+        `, [titre, description, etudiant_id, technologies, url_demo, url_repo]);
+
+        res.status(201).json({
+          success: true,
+          data: result[0],
+          message: 'Projet réalisé créé avec succès'
+        });
+      } catch (error) {
+        console.error('[Vercel] Create projet error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la création du projet',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour récupérer un projet par ID
+    adminRouter.get('/projets-realises/:id', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: projet } = await db.query(`
+          SELECT
+            pr.*,
+            u.nom as etudiant_nom,
+            u.prenom as etudiant_prenom,
+            u.matricule as etudiant_matricule,
+            f.nom as filiere_nom
+          FROM public.projets_realises pr
+          LEFT JOIN public.utilisateurs u ON pr.etudiant_id = u.id
+          LEFT JOIN public.filieres f ON u.filiere_id = f.id
+          WHERE pr.id = $1
+        `, [req.params.id]);
+
+        if (projet.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: 'Projet non trouvé'
+          });
+        }
+
+        res.json({
+          success: true,
+          data: projet[0]
+        });
+      } catch (error) {
+        console.error('[Vercel] Get projet error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération du projet',
           error: error.message
         });
       }
