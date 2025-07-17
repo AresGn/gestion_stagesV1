@@ -395,7 +395,6 @@ const setupRoutes = async () => {
             ps.titre,
             ps.description,
             ps.entreprise_id,
-            ps.duree,
             ps.remuneration,
             ps.competences_requises,
             ps.date_limite_candidature,
@@ -710,7 +709,7 @@ const setupRoutes = async () => {
           SELECT
             'stage' as type,
             s.id,
-            s.titre,
+            s.sujet as titre,
             s.created_at,
             u.nom as etudiant_nom,
             u.prenom as etudiant_prenom,
@@ -746,11 +745,10 @@ const setupRoutes = async () => {
           SELECT
             f.id as filiere_id,
             f.nom as filiere_nom,
-            f.description,
             COUNT(u.id) as nombre_etudiants
           FROM public.filieres f
           LEFT JOIN public.utilisateurs u ON f.id = u.filiere_id AND u.role = 'etudiant'
-          GROUP BY f.id, f.nom, f.description
+          GROUP BY f.id, f.nom
           ORDER BY f.nom
         `);
 
@@ -800,24 +798,14 @@ const setupRoutes = async () => {
       }
     });
 
-    // Route pour les propositions de thèmes
+    // Route pour les propositions de thèmes (table alternative ou vide)
     adminRouter.get('/propositions-themes', requireAdmin, async (req, res) => {
       try {
-        const dbModule = await import('../src/config/db.js');
-        const db = dbModule.default;
-
-        const { rows: themes } = await db.query(`
-          SELECT
-            pt.*,
-            f.nom as filiere_nom
-          FROM public.propositions_themes pt
-          LEFT JOIN public.filieres f ON pt.filiere_id = f.id
-          ORDER BY pt.created_at DESC
-        `);
-
+        // Pour l'instant, retourner un tableau vide car la table n'existe pas
+        // Vous pouvez créer la table plus tard ou utiliser une autre source
         res.json({
           success: true,
-          data: themes
+          data: []
         });
       } catch (error) {
         console.error('[Vercel] Propositions themes error:', error);

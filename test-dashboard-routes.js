@@ -10,7 +10,8 @@ async function getStudentToken() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-s
+        matricule: '64036STI45',
+        password: 'W*W?4quQA7aBTXF'
       })
     });
     
@@ -28,7 +29,8 @@ async function getAdminToken() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-   
+        matricule: 'ADMIN001',
+        password: 'admin123'
       })
     });
     
