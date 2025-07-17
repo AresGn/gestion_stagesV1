@@ -520,13 +520,26 @@ const setupRoutes = async () => {
           db.query('SELECT COUNT(*) FROM public.propositions_stages WHERE statut = $1', ['active'])
         ]);
 
+        // Ajouter les statistiques par filière pour le dashboard
+        const { rows: etudiantsParFiliere } = await db.query(`
+          SELECT
+            f.nom as filiere,
+            COUNT(u.id) as count
+          FROM public.filieres f
+          LEFT JOIN public.utilisateurs u ON f.id = u.filiere_id AND u.role = 'etudiant'
+          GROUP BY f.id, f.nom
+          HAVING COUNT(u.id) > 0
+          ORDER BY f.nom
+        `);
+
         res.json({
           success: true,
           data: {
             totalEtudiants: parseInt(totalEtudiants),
             totalStages: parseInt(totalStages),
             totalEntreprises: parseInt(totalEntreprises),
-            totalOffres: parseInt(totalOffres)
+            totalOffres: parseInt(totalOffres),
+            etudiantsParFiliere: etudiantsParFiliere
           }
         });
       } catch (error) {
@@ -705,11 +718,14 @@ const setupRoutes = async () => {
         const dbModule = await import('../src/config/db.js');
         const db = dbModule.default;
 
-        const { rows: activites } = await db.query(`
+        // Créer des activités factices basées sur les données existantes
+        const activites = [];
+
+        // Récupérer les stages récents
+        const { rows: stages } = await db.query(`
           SELECT
-            'stage' as type,
             s.id,
-            s.sujet as titre,
+            s.theme_memoire,
             s.created_at,
             u.nom as etudiant_nom,
             u.prenom as etudiant_prenom,
@@ -718,12 +734,50 @@ const setupRoutes = async () => {
           JOIN public.utilisateurs u ON s.etudiant_id = u.id
           LEFT JOIN public.entreprises e ON s.entreprise_id = e.id
           ORDER BY s.created_at DESC
-          LIMIT 10
+          LIMIT 5
         `);
+
+        // Convertir en format attendu par le frontend
+        stages.forEach((stage, index) => {
+          activites.push({
+            id: stage.id + 1000, // Éviter les conflits d'ID
+            type_activite: 'stage',
+            description: `Stage "${stage.theme_memoire}" par ${stage.etudiant_prenom} ${stage.etudiant_nom}`,
+            valeur: null,
+            date_activite: stage.created_at,
+            user_id: null
+          });
+        });
+
+        // Récupérer les projets récents
+        const { rows: projets } = await db.query(`
+          SELECT
+            id,
+            titre,
+            auteur,
+            created_at
+          FROM public.projets_realises
+          ORDER BY created_at DESC
+          LIMIT 3
+        `);
+
+        projets.forEach((projet, index) => {
+          activites.push({
+            id: projet.id + 2000, // Éviter les conflits d'ID
+            type_activite: 'projet',
+            description: `Projet "${projet.titre}" par ${projet.auteur}`,
+            valeur: null,
+            date_activite: projet.created_at,
+            user_id: null
+          });
+        });
+
+        // Trier par date décroissante
+        activites.sort((a, b) => new Date(b.date_activite) - new Date(a.date_activite));
 
         res.json({
           success: true,
-          data: activites
+          data: activites.slice(0, 10)
         });
       } catch (error) {
         console.error('[Vercel] Activites error:', error);
@@ -798,15 +852,49 @@ const setupRoutes = async () => {
       }
     });
 
-    // Route pour les propositions de thèmes (table alternative ou vide)
+    // Route pour les propositions de thèmes (données factices basées sur les propositions de stages)
     adminRouter.get('/propositions-themes', requireAdmin, async (req, res) => {
       try {
-        // Pour l'instant, retourner un tableau vide car la table n'existe pas
-        // Vous pouvez créer la table plus tard ou utiliser une autre source
-        res.json({
-          success: true,
-          data: []
-        });
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        // Récupérer les propositions de stages et les convertir en propositions de thèmes
+        const { rows: propositions } = await db.query(`
+          SELECT
+            ps.id,
+            ps.titre,
+            ps.description,
+            ps.entreprise_id,
+            ps.created_at,
+            e.nom as entreprise_nom,
+            e.email as email_contact
+          FROM public.propositions_stages ps
+          LEFT JOIN public.entreprises e ON ps.entreprise_id = e.id
+          ORDER BY ps.created_at DESC
+        `);
+
+        // Convertir en format attendu pour les propositions de thèmes
+        const propositionsThemes = propositions.map(prop => ({
+          id: prop.id,
+          titre: prop.titre,
+          description: prop.description,
+          auteur_nom: prop.entreprise_nom,
+          auteur_type: 'entreprise',
+          filiere_id: null,
+          nom_filiere: null,
+          entreprise_nom: prop.entreprise_nom,
+          email_contact: prop.email_contact,
+          difficulte: 'Non spécifiée',
+          technologies_suggerees: [],
+          objectifs_pedagogiques: prop.description,
+          est_validee: true,
+          statut: 'approuvee',
+          date_soumission: prop.created_at,
+          created_at: prop.created_at,
+          updated_at: prop.created_at
+        }));
+
+        res.json(propositionsThemes);
       } catch (error) {
         console.error('[Vercel] Propositions themes error:', error);
         res.status(500).json({
@@ -859,13 +947,9 @@ const setupRoutes = async () => {
         const { rows: projets } = await db.query(`
           SELECT
             pr.*,
-            u.nom as etudiant_nom,
-            u.prenom as etudiant_prenom,
-            u.matricule as etudiant_matricule,
-            f.nom as filiere_nom
+            f.nom as nom_filiere
           FROM public.projets_realises pr
-          LEFT JOIN public.utilisateurs u ON pr.etudiant_id = u.id
-          LEFT JOIN public.filieres f ON u.filiere_id = f.id
+          LEFT JOIN public.filieres f ON pr.filiere_id = f.id
           ORDER BY pr.created_at DESC
         `);
 
@@ -948,6 +1032,90 @@ const setupRoutes = async () => {
         res.status(500).json({
           success: false,
           message: 'Erreur lors de la récupération du projet',
+          error: error.message
+        });
+      }
+    });
+
+    // Route de debug SQL pour les administrateurs
+    adminRouter.post('/debug', requireAdmin, async (req, res) => {
+      try {
+        const { query } = req.body;
+
+        if (!query) {
+          return res.status(400).json({
+            success: false,
+            message: 'La requête SQL est requise'
+          });
+        }
+
+        // Vérifier que la requête est de type SELECT ou SHOW pour des raisons de sécurité
+        const firstWord = query.trim().split(' ')[0].toUpperCase();
+        if (!['SELECT', 'SHOW', 'DESCRIBE', 'DESC'].includes(firstWord)) {
+          return res.status(403).json({
+            success: false,
+            message: 'Seules les requêtes SELECT, SHOW et DESCRIBE sont autorisées pour le débogage'
+          });
+        }
+
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const result = await db.query(query);
+
+        res.json({
+          success: true,
+          data: result.rows,
+          rowCount: result.rowCount
+        });
+
+      } catch (error) {
+        console.error('[Vercel] Debug query error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de l\'exécution de la requête',
+          error: error.message
+        });
+      }
+    });
+
+    // Route de debug pour exécuter des requêtes SQL (admin seulement)
+    adminRouter.post('/debug', requireAdmin, async (req, res) => {
+      try {
+        const { query } = req.body;
+
+        if (!query) {
+          return res.status(400).json({
+            success: false,
+            message: 'La requête SQL est requise'
+          });
+        }
+
+        // Vérifier que la requête est de type SELECT, SHOW ou DESCRIBE pour la sécurité
+        const firstWord = query.trim().split(' ')[0].toUpperCase();
+        if (!['SELECT', 'SHOW', 'DESCRIBE', 'DESC'].includes(firstWord)) {
+          return res.status(403).json({
+            success: false,
+            message: 'Seules les requêtes SELECT, SHOW et DESCRIBE sont autorisées pour le débogage'
+          });
+        }
+
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const result = await db.query(query);
+
+        res.json({
+          success: true,
+          data: result.rows,
+          rowCount: result.rowCount
+        });
+
+      } catch (error) {
+        console.error('[Vercel] Debug query error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de l\'exécution de la requête',
           error: error.message
         });
       }
