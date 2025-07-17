@@ -441,8 +441,13 @@ const setupRoutes = async () => {
         const { rows: internships } = await db.query(`
           SELECT
             s.*,
-            e.nom as entreprise_nom,
-            e.ville as entreprise_ville
+            e.nom as nom_entreprise,
+            e.ville as entreprise_ville,
+            e.departement,
+            e.commune,
+            e.quartier,
+            e.email as email_entreprise,
+            e.telephone as telephone_entreprise
           FROM public.stages s
           LEFT JOIN public.entreprises e ON s.entreprise_id = e.id
           WHERE s.etudiant_id = $1
@@ -1158,15 +1163,47 @@ const setupRoutes = async () => {
     // GET /api/notifications
     notificationsRouter.get('/', authenticateNotifications, async (req, res) => {
       try {
+        console.log('[Vercel] Fetching notifications for user:', req.user.id);
+
         const dbModule = await import('../src/config/db.js');
         const db = dbModule.default;
 
+        // Vérifier d'abord si la table notifications existe
+        const tableExists = await db.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_schema = 'public'
+            AND table_name = 'notifications'
+          );
+        `);
+
+        if (!tableExists.rows[0].exists) {
+          console.log('[Vercel] Table notifications does not exist, returning empty array');
+          return res.json({
+            success: true,
+            data: []
+          });
+        }
+
         const { rows: notifications } = await db.query(`
-          SELECT * FROM public.notifications
-          WHERE user_id = $1 OR user_id IS NULL
+          SELECT
+            id,
+            titre,
+            message,
+            type,
+            lue as is_read,
+            utilisateur_id as user_id,
+            created_at,
+            priority,
+            target_url,
+            expires_at
+          FROM public.notifications
+          WHERE utilisateur_id = $1 OR utilisateur_id IS NULL
           ORDER BY created_at DESC
           LIMIT 20
         `, [req.user.id]);
+
+        console.log('[Vercel] Found notifications:', notifications.length);
 
         res.json({
           success: true,
@@ -1191,8 +1228,8 @@ const setupRoutes = async () => {
 
         await db.query(`
           UPDATE public.notifications
-          SET is_read = true, updated_at = NOW()
-          WHERE id = $1 AND (user_id = $2 OR user_id IS NULL)
+          SET lue = true
+          WHERE id = $1 AND (utilisateur_id = $2 OR utilisateur_id IS NULL)
         `, [notificationId, req.user.id]);
 
         res.json({
@@ -1217,8 +1254,8 @@ const setupRoutes = async () => {
 
         await db.query(`
           UPDATE public.notifications
-          SET is_read = true, updated_at = NOW()
-          WHERE (user_id = $1 OR user_id IS NULL) AND is_read = false
+          SET lue = true
+          WHERE (utilisateur_id = $1 OR utilisateur_id IS NULL) AND lue = false
         `, [req.user.id]);
 
         res.json({
@@ -1244,6 +1281,8 @@ const setupRoutes = async () => {
     // Route pour récupérer tous les projets réalisés (publique)
     projetsPublicsRouter.get('/projets-realises', async (req, res) => {
       try {
+        console.log('[Vercel] Fetching projets-realises...');
+
         const dbModule = await import('../src/config/db.js');
         const db = dbModule.default;
 
@@ -1267,7 +1306,13 @@ const setupRoutes = async () => {
           ORDER BY pr.created_at DESC
         `);
 
-        res.json(projets);
+        console.log('[Vercel] Found projets:', projets.length);
+
+        // Retourner dans le format attendu par le frontend
+        res.json({
+          success: true,
+          data: projets
+        });
       } catch (error) {
         console.error('[Vercel] Projets publics error:', error);
         res.status(500).json({
