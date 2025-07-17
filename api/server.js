@@ -576,6 +576,236 @@ const setupRoutes = async () => {
       }
     });
 
+    // Route pour les statistiques par filière
+    adminRouter.get('/statistiques/filiere', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: stats } = await db.query(`
+          SELECT
+            f.id as filiere_id,
+            f.nom as filiere_nom,
+            COUNT(u.id) as nombre_etudiants,
+            COUNT(s.id) as nombre_stages
+          FROM public.filieres f
+          LEFT JOIN public.utilisateurs u ON f.id = u.filiere_id AND u.role = 'etudiant'
+          LEFT JOIN public.stages s ON u.id = s.etudiant_id
+          GROUP BY f.id, f.nom
+          ORDER BY f.nom
+        `);
+
+        res.json({
+          success: true,
+          data: stats
+        });
+      } catch (error) {
+        console.error('[Vercel] Stats filiere error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des statistiques par filière',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour les statistiques par entreprise
+    adminRouter.get('/statistiques/entreprise', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: stats } = await db.query(`
+          SELECT
+            e.id,
+            e.nom,
+            e.ville,
+            COUNT(s.id) as nombre_stages,
+            COUNT(ps.id) as nombre_offres
+          FROM public.entreprises e
+          LEFT JOIN public.stages s ON e.id = s.entreprise_id
+          LEFT JOIN public.propositions_stages ps ON e.id = ps.entreprise_id
+          GROUP BY e.id, e.nom, e.ville
+          ORDER BY nombre_stages DESC, nombre_offres DESC
+          LIMIT 10
+        `);
+
+        res.json({
+          success: true,
+          data: stats
+        });
+      } catch (error) {
+        console.error('[Vercel] Stats entreprise error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des statistiques par entreprise',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour les activités récentes
+    adminRouter.get('/activites', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: activites } = await db.query(`
+          SELECT
+            'stage' as type,
+            s.id,
+            s.titre,
+            s.created_at,
+            u.nom as etudiant_nom,
+            u.prenom as etudiant_prenom,
+            e.nom as entreprise_nom
+          FROM public.stages s
+          JOIN public.utilisateurs u ON s.etudiant_id = u.id
+          LEFT JOIN public.entreprises e ON s.entreprise_id = e.id
+          ORDER BY s.created_at DESC
+          LIMIT 10
+        `);
+
+        res.json({
+          success: true,
+          data: activites
+        });
+      } catch (error) {
+        console.error('[Vercel] Activites error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des activités récentes',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour les paramètres par filière
+    adminRouter.get('/parametres/filiere', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: filieres } = await db.query(`
+          SELECT
+            f.id as filiere_id,
+            f.nom as filiere_nom,
+            f.description,
+            COUNT(u.id) as nombre_etudiants
+          FROM public.filieres f
+          LEFT JOIN public.utilisateurs u ON f.id = u.filiere_id AND u.role = 'etudiant'
+          GROUP BY f.id, f.nom, f.description
+          ORDER BY f.nom
+        `);
+
+        res.json({
+          success: true,
+          data: filieres
+        });
+      } catch (error) {
+        console.error('[Vercel] Parametres filiere error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des paramètres par filière',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour les propositions de stage
+    adminRouter.get('/propositions', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: propositions } = await db.query(`
+          SELECT
+            ps.*,
+            e.nom as entreprise_nom,
+            e.ville as entreprise_ville
+          FROM public.propositions_stages ps
+          LEFT JOIN public.entreprises e ON ps.entreprise_id = e.id
+          ORDER BY ps.created_at DESC
+        `);
+
+        res.json({
+          success: true,
+          data: {
+            propositions: propositions
+          }
+        });
+      } catch (error) {
+        console.error('[Vercel] Propositions error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des propositions',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour les propositions de thèmes
+    adminRouter.get('/propositions-themes', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: themes } = await db.query(`
+          SELECT
+            pt.*,
+            f.nom as filiere_nom
+          FROM public.propositions_themes pt
+          LEFT JOIN public.filieres f ON pt.filiere_id = f.id
+          ORDER BY pt.created_at DESC
+        `);
+
+        res.json({
+          success: true,
+          data: themes
+        });
+      } catch (error) {
+        console.error('[Vercel] Propositions themes error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des propositions de thèmes',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour les notifications admin
+    adminRouter.get('/notifications', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: notifications } = await db.query(`
+          SELECT
+            n.*,
+            u.nom,
+            u.prenom,
+            u.email,
+            u.telephone
+          FROM public.notifications n
+          JOIN public.utilisateurs u ON n.utilisateur_id = u.id
+          ORDER BY n.created_at DESC
+          LIMIT 100
+        `);
+
+        res.json({
+          success: true,
+          data: notifications
+        });
+      } catch (error) {
+        console.error('[Vercel] Notifications admin error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des notifications',
+          error: error.message
+        });
+      }
+    });
+
     app.use('/api/admin', adminRouter);
     console.log('[Vercel] /api/admin routes configured.');
 
