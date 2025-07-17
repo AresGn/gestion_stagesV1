@@ -1124,6 +1124,252 @@ const setupRoutes = async () => {
     app.use('/api/admin', adminRouter);
     console.log('[Vercel] /api/admin routes configured.');
 
+    // ========================================
+    // ROUTES POUR LES ÉTUDIANTS
+    // ========================================
+
+    // Routes pour les notifications
+    const notificationsRouter = express.Router();
+
+    // Middleware d'authentification pour les notifications
+    const authenticateNotifications = async (req, res, next) => {
+      try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return res.status(401).json({
+            success: false,
+            message: 'Token manquant'
+          });
+        }
+
+        const token = authHeader.substring(7);
+        const jwt = await import('jsonwebtoken');
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+        req.user = decoded;
+        next();
+      } catch (error) {
+        return res.status(401).json({
+          success: false,
+          message: 'Token invalide'
+        });
+      }
+    };
+
+    // GET /api/notifications
+    notificationsRouter.get('/', authenticateNotifications, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: notifications } = await db.query(`
+          SELECT * FROM public.notifications
+          WHERE user_id = $1 OR user_id IS NULL
+          ORDER BY created_at DESC
+          LIMIT 20
+        `, [req.user.id]);
+
+        res.json({
+          success: true,
+          data: notifications
+        });
+      } catch (error) {
+        console.error('[Vercel] Notifications error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des notifications',
+          error: error.message
+        });
+      }
+    });
+
+    // PUT /api/notifications/:id/read
+    notificationsRouter.put('/:id/read', authenticateNotifications, async (req, res) => {
+      try {
+        const notificationId = req.params.id;
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        await db.query(`
+          UPDATE public.notifications
+          SET is_read = true, updated_at = NOW()
+          WHERE id = $1 AND (user_id = $2 OR user_id IS NULL)
+        `, [notificationId, req.user.id]);
+
+        res.json({
+          success: true,
+          message: 'Notification marquée comme lue'
+        });
+      } catch (error) {
+        console.error('[Vercel] Mark notification read error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la mise à jour de la notification',
+          error: error.message
+        });
+      }
+    });
+
+    // PUT /api/notifications/read-all
+    notificationsRouter.put('/read-all', authenticateNotifications, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        await db.query(`
+          UPDATE public.notifications
+          SET is_read = true, updated_at = NOW()
+          WHERE (user_id = $1 OR user_id IS NULL) AND is_read = false
+        `, [req.user.id]);
+
+        res.json({
+          success: true,
+          message: 'Toutes les notifications marquées comme lues'
+        });
+      } catch (error) {
+        console.error('[Vercel] Mark all notifications read error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la mise à jour des notifications',
+          error: error.message
+        });
+      }
+    });
+
+    app.use('/api/notifications', notificationsRouter);
+    console.log('[Vercel] /api/notifications routes configured.');
+
+    // Routes pour les projets publics
+    const projetsPublicsRouter = express.Router();
+
+    // Route pour récupérer tous les projets réalisés (publique)
+    projetsPublicsRouter.get('/projets-realises', async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: projets } = await db.query(`
+          SELECT
+            pr.id,
+            pr.titre,
+            pr.description,
+            pr.auteur,
+            pr.annee,
+            pr.filiere_id,
+            f.nom as nom_filiere,
+            pr.technologies,
+            pr.points_forts,
+            pr.points_amelioration,
+            pr.date_publication,
+            pr.created_at,
+            pr.updated_at
+          FROM public.projets_realises pr
+          LEFT JOIN public.filieres f ON pr.filiere_id = f.id
+          ORDER BY pr.created_at DESC
+        `);
+
+        res.json(projets);
+      } catch (error) {
+        console.error('[Vercel] Projets publics error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des projets',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour récupérer toutes les propositions de stages (publique)
+    projetsPublicsRouter.get('/propositions-stages', async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: propositions } = await db.query(`
+          SELECT
+            id,
+            entreprise_nom,
+            titre,
+            location,
+            description,
+            requirements,
+            duration,
+            filiere_id,
+            created_at,
+            updated_at,
+            date_publication,
+            statut,
+            entreprise_id
+          FROM public.propositions_stages
+          ORDER BY date_publication DESC, created_at DESC
+        `);
+
+        res.json(propositions);
+      } catch (error) {
+        console.error('[Vercel] Propositions stages error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des propositions de stages',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour récupérer toutes les propositions de thèmes (publique)
+    projetsPublicsRouter.get('/propositions-themes', async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        // Récupérer les propositions de stages et les convertir en propositions de thèmes
+        const { rows: propositions } = await db.query(`
+          SELECT
+            ps.id,
+            ps.titre,
+            ps.description,
+            ps.entreprise_id,
+            ps.created_at,
+            e.nom as entreprise_nom,
+            e.email as email_contact
+          FROM public.propositions_stages ps
+          LEFT JOIN public.entreprises e ON ps.entreprise_id = e.id
+          ORDER BY ps.created_at DESC
+        `);
+
+        // Convertir en format attendu pour les propositions de thèmes
+        const propositionsThemes = propositions.map(prop => ({
+          id: prop.id,
+          titre: prop.titre,
+          description: prop.description,
+          auteur_nom: prop.entreprise_nom,
+          auteur_type: 'entreprise',
+          filiere_id: null,
+          nom_filiere: null,
+          entreprise_nom: prop.entreprise_nom,
+          email_contact: prop.email_contact,
+          difficulte: 'Non spécifiée',
+          technologies_suggerees: [],
+          objectifs_pedagogiques: prop.description,
+          est_validee: true,
+          statut: 'approuvee',
+          date_soumission: prop.created_at,
+          created_at: prop.created_at,
+          updated_at: prop.created_at
+        }));
+
+        res.json(propositionsThemes);
+      } catch (error) {
+        console.error('[Vercel] Propositions themes publiques error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des propositions de thèmes',
+          error: error.message
+        });
+      }
+    });
+
+    app.use('/api', projetsPublicsRouter);
+    console.log('[Vercel] /api (projets publics) routes configured.');
+
   } catch (error) {
     console.error('[Vercel] Error setting up routes:', error);
   }
