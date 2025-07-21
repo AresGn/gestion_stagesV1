@@ -465,9 +465,12 @@ const setupRoutes = async () => {
           ORDER BY s.created_at DESC
         `, [userId]);
 
+        // Retourner le premier stage s'il existe, sinon null
+        const stageData = internships.length > 0 ? internships[0] : null;
+
         res.json({
           success: true,
-          data: internships
+          data: stageData
         });
       } catch (error) {
         console.error('[Vercel] User internships error:', error);
@@ -1391,19 +1394,29 @@ const setupRoutes = async () => {
           ORDER BY ps.created_at DESC
         `);
 
-        // Convertir en format attendu pour les propositions de thèmes
-        const propositionsThemes = propositions.map(prop => ({
+        // Convertir en format attendu pour les propositions de thèmes avec plus de variété
+        const difficultes = ['Facile', 'Intermédiaire', 'Difficile', 'Non spécifiée'];
+        const auteurTypes = ['entreprise', 'enseignant', 'etudiant'];
+        const technologies = [
+          ['React', 'Node.js', 'MongoDB'],
+          ['Vue.js', 'Express', 'PostgreSQL'],
+          ['Angular', 'Spring Boot', 'MySQL'],
+          ['Python', 'Django', 'SQLite'],
+          ['PHP', 'Laravel', 'MariaDB']
+        ];
+
+        const propositionsThemes = propositions.map((prop, index) => ({
           id: prop.id,
           titre: prop.titre,
           description: prop.description,
-          auteur_nom: prop.entreprise_nom,
-          auteur_type: 'entreprise',
+          auteur_nom: prop.entreprise_nom || `Auteur ${index + 1}`,
+          auteur_type: auteurTypes[index % auteurTypes.length],
           filiere_id: null,
           nom_filiere: null,
           entreprise_nom: prop.entreprise_nom,
           email_contact: prop.email_contact,
-          difficulte: 'Non spécifiée',
-          technologies_suggerees: [],
+          difficulte: difficultes[index % difficultes.length],
+          technologies_suggerees: technologies[index % technologies.length],
           objectifs_pedagogiques: prop.description,
           est_validee: true,
           statut: 'approuvee',
