@@ -25,8 +25,8 @@ export const ProjetsTab: React.FC<ProjetsTabProps> = () => {
         const data = await response.json();
         setProjets(data.data || []);
       } catch (error) {
-        console.error(error);
-        // Gérer l'erreur, par exemple afficher un message à l'utilisateur
+        console.error('Erreur fetchProjets:', error);
+        setProjets([]);
       }
     };
 
@@ -37,10 +37,10 @@ export const ProjetsTab: React.FC<ProjetsTabProps> = () => {
           throw new Error('Erreur lors de la récupération des propositions');
         }
         const data = await response.json();
-        setPropositions(data || []);
+        setPropositions(Array.isArray(data) ? data : data.data || []);
       } catch (error) {
-        console.error(error);
-        // Gérer l'erreur
+        console.error('Erreur fetchPropositions:', error);
+        setPropositions([]);
       }
     };
 

@@ -57,7 +57,11 @@ export const PropositionsThemes: React.FC<PropositionsThemesProps> = ({ proposit
   };
   
   const handlePropositionClick = (proposition: PropositionTheme) => {
-    setSelectedProposition(proposition);
+    try {
+      setSelectedProposition(proposition);
+    } catch (error) {
+      console.error('Erreur lors de l\'ouverture de la proposition:', error);
+    }
   };
   
   const closeModal = () => {
@@ -211,14 +215,12 @@ export const PropositionsThemes: React.FC<PropositionsThemesProps> = ({ proposit
                   <p className="text-gray-700">{selectedProposition.description}</p>
                 </section>
 
-                <section>
-                  <h3 className="text-lg font-semibold mb-1">Fonctionnalités attendues</h3>
-                  <ul className="list-disc pl-5 text-gray-700">
-                    {selectedProposition.fonctionnalites.map((fonctionnalite, index) => (
-                      <li key={index}>{fonctionnalite}</li>
-                    ))}
-                  </ul>
-                </section>
+                {selectedProposition.objectifs_pedagogiques && (
+                  <section>
+                    <h3 className="text-lg font-semibold mb-1">Objectifs pédagogiques</h3>
+                    <p className="text-gray-700">{selectedProposition.objectifs_pedagogiques}</p>
+                  </section>
+                )}
 
                 {selectedProposition.technologies_suggerees && selectedProposition.technologies_suggerees.length > 0 && (
                   <section>

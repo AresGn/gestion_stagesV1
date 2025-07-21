@@ -447,9 +447,20 @@ const setupRoutes = async () => {
             e.commune,
             e.quartier,
             e.email as email_entreprise,
-            e.telephone as telephone_entreprise
+            e.telephone as telephone_entreprise,
+            ms.nom as nom_maitre_stage,
+            ms.prenom as prenom_maitre_stage,
+            ms.telephone as telephone_maitre_stage,
+            ms.email as email_maitre_stage,
+            ms.fonction as fonction_maitre_stage,
+            mm.nom as nom_maitre_memoire,
+            mm.telephone as telephone_maitre_memoire,
+            mm.email as email_maitre_memoire,
+            mm.statut as statut_maitre_memoire
           FROM public.stages s
           LEFT JOIN public.entreprises e ON s.entreprise_id = e.id
+          LEFT JOIN public.maitres_stage ms ON s.maitre_stage_id = ms.id
+          LEFT JOIN public.maitres_memoire mm ON s.maitre_memoire_id = mm.id
           WHERE s.etudiant_id = $1
           ORDER BY s.created_at DESC
         `, [userId]);

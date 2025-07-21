@@ -50,13 +50,20 @@ export interface PropositionTheme {
   id: number;
   titre: string;
   description: string;
-  fonctionnalites?: string[];
   auteur_nom: string;
   auteur_type: 'Enseignant' | 'Étudiant' | 'Entreprise' | 'Autre' | string;
   nom_filiere?: string;
-  difficulte: 'Facile' | 'Intermédiaire' | 'Difficile' | string;
+  filiere_id?: number | null;
+  entreprise_nom?: string | null;
+  email_contact?: string | null;
+  difficulte: 'Facile' | 'Intermédiaire' | 'Difficile' | 'Non spécifiée' | string;
   technologies_suggerees?: string[];
+  objectifs_pedagogiques?: string | null;
+  est_validee?: boolean | null;
+  statut?: 'soumise' | 'approuvee' | 'rejetee' | 'archivee' | null;
   date_soumission?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Notification {

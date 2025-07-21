@@ -8,7 +8,7 @@ import ProfileTab from '@/components/student/dashboard/ProfileTab';
 import InternshipInfoTab from '@/components/student/dashboard/InternshipInfoTab';
 import FindInternshipTab from '@/components/student/dashboard/FindInternshipTab';
 import NotificationsTab from '@/components/student/dashboard/NotificationsTab';
-import { PWATestSimple } from '@/components/PWATestSimple';
+
 import { InternshipOffer } from '@/types';
 
 // Liste des filières pour mappage ID -> nom
@@ -295,7 +295,6 @@ const StudentDashboard = () => {
               )}
               {activeTab === 'projets' && <ProjetsTab />}
               {activeTab === 'notifications' && <NotificationsTab />}
-              {activeTab === 'pwa-test' && <PWATestSimple />}
             </>
           )}
         </main>
