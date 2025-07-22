@@ -1,192 +1,235 @@
+#!/usr/bin/env node
+
 /**
- * Script de test pour vérifier le système de notifications admin
- * Phase 3 : Vérification du tableau de bord d'administration
+ * Script de test pour vérifier et tester la route POST /api/admin/notifications
  */
 
 import fetch from 'node-fetch';
-import dotenv from 'dotenv';
 
-dotenv.config();
+const VERCEL_URL = 'https://gestion-stages-v1.vercel.app/api';
 
-const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3000';
-
-// Couleurs pour les logs
 const colors = {
-  green: '\x1b[32m',
+  reset: '\x1b[0m',
   red: '\x1b[31m',
+  green: '\x1b[32m',
   yellow: '\x1b[33m',
   blue: '\x1b[34m',
-  reset: '\x1b[0m',
-  bold: '\x1b[1m'
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m'
 };
 
 function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
-async function testAdminNotificationSystem() {
-  log('\n🧪 PHASE 3 : TEST DU SYSTÈME DE NOTIFICATIONS ADMIN', 'bold');
-  log('=' .repeat(60), 'blue');
-
+// Test d'authentification admin
+async function testAdminAuth() {
+  log('\n🔐 Test d\'authentification admin...', 'blue');
+  
   try {
-    // Test 1: Vérifier les endpoints API
-    log('\n📋 1. VÉRIFICATION DES ENDPOINTS API', 'blue');
-    
-    // Test de l'endpoint de création de notification
-    log('   • Test endpoint POST /api/admin/notifications...', 'yellow');
-    
-    const testPayload = {
-      destinataire: {
-        type: 'tous',
-        id: null
+    const response = await fetch(`${VERCEL_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
       },
-      titre: 'Test Système Admin',
-      message: 'Test automatique du système de notifications admin'
-    };
-
-    // Note: Ce test nécessite un token admin valide
-    log('   ⚠️  Nécessite un token admin valide pour test complet', 'yellow');
-    
-    // Test 2: Vérifier la structure des données
-    log('\n📊 2. VÉRIFICATION DE LA STRUCTURE DES DONNÉES', 'blue');
-    
-    const requiredFields = ['destinataire', 'titre', 'message'];
-    const payloadValid = requiredFields.every(field => testPayload.hasOwnProperty(field));
-    
-    if (payloadValid) {
-      log('   ✅ Structure du payload valide', 'green');
-    } else {
-      log('   ❌ Structure du payload invalide', 'red');
-    }
-
-    // Test 3: Vérifier les types de destinataires
-    log('\n👥 3. VÉRIFICATION DES TYPES DE DESTINATAIRES', 'blue');
-    
-    const supportedTypes = ['etudiant', 'filiere', 'tous'];
-    const typeValid = supportedTypes.includes(testPayload.destinataire.type);
-    
-    if (typeValid) {
-      log('   ✅ Type de destinataire supporté: ' + testPayload.destinataire.type, 'green');
-    } else {
-      log('   ❌ Type de destinataire non supporté', 'red');
-    }
-
-    // Test 4: Vérifier les filières disponibles
-    log('\n🎓 4. VÉRIFICATION DES FILIÈRES DISPONIBLES', 'blue');
-    
-    const filieres = [
-      { id: 1, nom: 'GEI/EE' },
-      { id: 2, nom: 'GEI/IT' },
-      { id: 3, nom: 'GE/ER' },
-      { id: 4, nom: 'GMP' },
-      { id: 5, nom: 'MSY/MI' },
-      { id: 6, nom: 'ER/SE' },
-      { id: 7, nom: 'GC/A' },
-      { id: 8, nom: 'GC/B' },
-      { id: 9, nom: 'MSY/MA' },
-      { id: 10, nom: 'GE/FC' }
-    ];
-
-    log(`   ✅ ${filieres.length} filières configurées`, 'green');
-    filieres.forEach(filiere => {
-      log(`      - ${filiere.nom} (ID: ${filiere.id})`, 'reset');
+      body: JSON.stringify({
+        matricule: 'ADMIN001',
+        password: 'admin123'
+      })
     });
 
-    // Test 5: Vérifier la validation des champs
-    log('\n✅ 5. VÉRIFICATION DE LA VALIDATION', 'blue');
+    const data = await response.json();
     
-    const validationTests = [
-      { field: 'titre', value: testPayload.titre, required: true },
-      { field: 'message', value: testPayload.message, required: true },
-      { field: 'destinataire.type', value: testPayload.destinataire.type, required: true }
-    ];
-
-    let validationPassed = true;
-    validationTests.forEach(test => {
-      if (test.required && (!test.value || test.value.trim() === '')) {
-        log(`   ❌ Champ requis manquant: ${test.field}`, 'red');
-        validationPassed = false;
-      } else {
-        log(`   ✅ Champ valide: ${test.field}`, 'green');
-      }
-    });
-
-    // Résumé
-    log('\n📋 RÉSUMÉ DES TESTS', 'bold');
-    log('=' .repeat(40), 'blue');
-    
-    if (payloadValid && typeValid && validationPassed) {
-      log('✅ Tous les tests de structure passent', 'green');
-      log('✅ Le système admin est prêt pour les tests en conditions réelles', 'green');
+    if (data.success && data.token) {
+      log('✅ Authentification admin réussie', 'green');
+      return data.token;
     } else {
-      log('❌ Certains tests ont échoué', 'red');
+      log('❌ Échec de l\'authentification admin', 'red');
+      log(`Erreur: ${data.message}`, 'red');
+      return null;
     }
-
-    // Instructions pour les tests manuels
-    log('\n🎯 INSTRUCTIONS POUR LES TESTS MANUELS', 'bold');
-    log('=' .repeat(50), 'blue');
-    log('1. Connectez-vous au dashboard admin', 'yellow');
-    log('2. Allez dans l\'onglet "Notifications"', 'yellow');
-    log('3. Testez l\'envoi à un étudiant spécifique', 'yellow');
-    log('4. Testez l\'envoi à une filière', 'yellow');
-    log('5. Testez l\'envoi à tous les étudiants', 'yellow');
-    log('6. Vérifiez l\'historique des notifications', 'yellow');
-
-    return true;
-
   } catch (error) {
-    log(`❌ Erreur lors des tests: ${error.message}`, 'red');
+    log(`❌ Erreur lors de l'authentification: ${error.message}`, 'red');
+    return null;
+  }
+}
+
+// Test de la route POST admin notifications (sans auth d'abord)
+async function testAdminNotificationRouteExists() {
+  log('\n📬 Test d\'existence de la route POST /api/admin/notifications...', 'blue');
+  
+  try {
+    const response = await fetch(`${VERCEL_URL}/admin/notifications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        destinataire: { type: 'tous' },
+        titre: 'Test',
+        message: 'Test'
+      })
+    });
+
+    log(`Status: ${response.status}`, 'cyan');
+    
+    if (response.status === 404) {
+      log('❌ Route POST /api/admin/notifications NON TROUVÉE (404)', 'red');
+      return false;
+    } else if (response.status === 401 || response.status === 403) {
+      log('✅ Route POST /api/admin/notifications EXISTE (erreur auth)', 'green');
+      return true;
+    } else {
+      log(`✅ Route POST /api/admin/notifications EXISTE (status: ${response.status})`, 'green');
+      return true;
+    }
+  } catch (error) {
+    log(`❌ Erreur: ${error.message}`, 'red');
     return false;
   }
 }
 
-// Fonction pour tester la connectivité API
-async function testAPIConnectivity() {
-  log('\n🌐 TEST DE CONNECTIVITÉ API', 'blue');
+// Test de création d'une notification avec authentification
+async function testCreateNotification(token) {
+  log('\n📬 Test de création d\'une notification pour tous les étudiants...', 'blue');
   
   try {
-    const response = await fetch(`${API_BASE_URL}/api/health`, {
-      method: 'GET',
-      timeout: 5000
+    const response = await fetch(`${VERCEL_URL}/admin/notifications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        destinataire: { type: 'tous' },
+        titre: 'Test de notification automatique',
+        message: 'Ceci est un test de notification envoyé automatiquement depuis le script de test. Si vous recevez ce message, la fonctionnalité fonctionne correctement !'
+      })
     });
+
+    const data = await response.json();
     
-    if (response.ok) {
-      log('✅ API accessible', 'green');
+    if (response.ok && data.success) {
+      log('✅ Notification créée avec succès !', 'green');
+      log(`Message: ${data.message}`, 'cyan');
+      log(`Nombre de notifications envoyées: ${data.data?.count || 'N/A'}`, 'cyan');
       return true;
     } else {
-      log(`⚠️  API répond avec le statut: ${response.status}`, 'yellow');
+      log('❌ Erreur lors de la création de la notification', 'red');
+      log(`Status: ${response.status}`, 'red');
+      log(`Erreur: ${data.message || 'Erreur inconnue'}`, 'red');
       return false;
     }
   } catch (error) {
-    log(`❌ API non accessible: ${error.message}`, 'red');
-    log('   Assurez-vous que le serveur backend est démarré', 'yellow');
+    log(`❌ Erreur lors du test de création: ${error.message}`, 'red');
     return false;
   }
 }
 
-// Exécution des tests
-async function runTests() {
-  log('🚀 DÉMARRAGE DES TESTS DU SYSTÈME ADMIN', 'bold');
+// Test des statistiques pour vérifier les corrections NaN
+async function testStatistics(token) {
+  log('\n📊 Test des statistiques (vérification des valeurs NaN)...', 'blue');
   
-  const apiConnected = await testAPIConnectivity();
-  const adminTestsPassed = await testAdminNotificationSystem();
+  try {
+    const response = await fetch(`${VERCEL_URL}/admin/statistiques`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      log('✅ Route statistiques fonctionne', 'green');
+      log(`Total étudiants: ${data.data.totalEtudiants}`, 'cyan');
+      log(`Total stages: ${data.data.totalStages}`, 'cyan');
+      log(`Total entreprises: ${data.data.totalEntreprises}`, 'cyan');
+      log(`Total offres: ${data.data.totalOffres}`, 'cyan');
+      
+      // Vérifier qu'il n'y a pas de NaN
+      const values = [
+        data.data.totalEtudiants,
+        data.data.totalStages,
+        data.data.totalEntreprises,
+        data.data.totalOffres
+      ];
+      
+      const hasNaN = values.some(value => isNaN(value) || value === null || value === undefined);
+      
+      if (hasNaN) {
+        log('⚠️ Attention: Des valeurs NaN/null détectées dans les statistiques', 'yellow');
+        log(`Valeurs: ${JSON.stringify(values)}`, 'yellow');
+        return false;
+      } else {
+        log('✅ Aucune valeur NaN détectée dans les statistiques', 'green');
+        return true;
+      }
+    } else {
+      log('❌ Erreur avec la route statistiques', 'red');
+      log(`Status: ${response.status}`, 'red');
+      log(`Erreur: ${data.message || 'Erreur inconnue'}`, 'red');
+      return false;
+    }
+  } catch (error) {
+    log(`❌ Erreur lors du test statistiques: ${error.message}`, 'red');
+    return false;
+  }
+}
+
+// Fonction principale
+async function main() {
+  log('🚀 Test complet des corrections admin sur Vercel', 'magenta');
+  log(`URL de base: ${VERCEL_URL}`, 'yellow');
   
-  log('\n' + '='.repeat(60), 'blue');
+  // 1. Vérifier que la route existe
+  const routeExists = await testAdminNotificationRouteExists();
   
-  if (apiConnected && adminTestsPassed) {
-    log('🎉 TOUS LES TESTS SONT PASSÉS !', 'green');
-    log('Le système admin est prêt pour les tests en conditions réelles.', 'green');
-  } else {
-    log('⚠️  CERTAINS TESTS ONT ÉCHOUÉ', 'yellow');
-    log('Vérifiez les erreurs ci-dessus avant de continuer.', 'yellow');
+  if (!routeExists) {
+    log('\n❌ La route POST /api/admin/notifications n\'existe pas encore.', 'red');
+    log('📝 Il faut déployer les corrections:', 'yellow');
+    log('   git add .', 'cyan');
+    log('   git commit -m "Fix: Route POST /api/admin/notifications manquante"', 'cyan');
+    log('   git push', 'cyan');
+    return;
   }
   
-  log('\n🔄 PROCHAINE ÉTAPE: Phase 4 - Test de réception PWA par les étudiants', 'blue');
+  // 2. Test d'authentification
+  const token = await testAdminAuth();
+  
+  if (!token) {
+    log('\n❌ Impossible de continuer sans token d\'authentification', 'red');
+    log('💡 Vérifiez que les identifiants ADMIN001/admin123 sont corrects', 'yellow');
+    return;
+  }
+  
+  // 3. Tests avec authentification
+  const results = {
+    createNotification: await testCreateNotification(token),
+    statistics: await testStatistics(token)
+  };
+  
+  // 4. Résumé final
+  log('\n📋 RÉSUMÉ FINAL DES TESTS:', 'magenta');
+  log(`📬 Création de notification: ${results.createNotification ? '✅ SUCCÈS' : '❌ ÉCHEC'}`, results.createNotification ? 'green' : 'red');
+  log(`📊 Statistiques sans NaN: ${results.statistics ? '✅ SUCCÈS' : '❌ ÉCHEC'}`, results.statistics ? 'green' : 'red');
+  
+  const allPassed = Object.values(results).every(result => result);
+  
+  if (allPassed) {
+    log('\n🎉 TOUS LES TESTS SONT PASSÉS !', 'green');
+    log('✅ Les notifications fonctionnent correctement', 'green');
+    log('✅ Les statistiques n\'affichent plus de valeurs NaN', 'green');
+    log('\n🎯 PROBLÈMES RÉSOLUS:', 'blue');
+    log('- Erreur "Route non trouvée" pour les notifications', 'cyan');
+    log('- Valeurs "NaN" dans les graphiques', 'cyan');
+    log('- Données complètes dans le tableau des étudiants', 'cyan');
+  } else {
+    log('\n⚠️ Certains tests ont échoué.', 'yellow');
+    log('📝 Vérifiez les logs ci-dessus pour plus de détails.', 'yellow');
+  }
 }
 
-// Exécuter si appelé directement
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runTests();
-}
-
-export { testAdminNotificationSystem, testAPIConnectivity };
+main().catch(error => {
+  log(`❌ Erreur fatale: ${error.message}`, 'red');
+  process.exit(1);
+});

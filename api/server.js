@@ -961,7 +961,7 @@ const setupRoutes = async () => {
       }
     });
 
-    // Route pour les notifications admin
+    // Route pour les notifications admin - GET
     adminRouter.get('/notifications', requireAdmin, async (req, res) => {
       try {
         const dbModule = await import('../src/config/db.js');
@@ -989,6 +989,113 @@ const setupRoutes = async () => {
         res.status(500).json({
           success: false,
           message: 'Erreur lors de la récupération des notifications',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour les notifications admin - POST (créer une notification)
+    adminRouter.post('/notifications', requireAdmin, async (req, res) => {
+      try {
+        const { destinataire, titre, message } = req.body;
+        console.log('[Vercel] Creating admin notification:', { destinataire, titre, message });
+
+        if (!destinataire || !destinataire.type || !message || !titre) {
+          return res.status(400).json({
+            success: false,
+            message: 'Le type de destinataire, le titre et le message sont requis.'
+          });
+        }
+
+        const { type, id: destinataireId } = destinataire;
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        let userIdsToNotify = [];
+
+        if (type === 'etudiant') {
+          if (!destinataireId) {
+            return res.status(400).json({
+              success: false,
+              message: 'L\'utilisateur_id est requis pour le type "etudiant".'
+            });
+          }
+          userIdsToNotify.push(destinataireId);
+        } else if (type === 'filiere') {
+          if (!destinataireId) {
+            return res.status(400).json({
+              success: false,
+              message: 'Le filiere_id est requis pour le type "filiere".'
+            });
+          }
+          const { rows: usersInFiliere } = await db.query(
+            "SELECT id FROM public.utilisateurs WHERE role = 'etudiant' AND filiere_id = $1",
+            [destinataireId]
+          );
+          userIdsToNotify = usersInFiliere.map(user => user.id);
+          if (userIdsToNotify.length === 0) {
+            return res.status(404).json({
+              success: false,
+              message: 'Aucun étudiant trouvé pour cette filière.'
+            });
+          }
+        } else if (type === 'tous') {
+          const { rows: allEtudiants } = await db.query(
+            "SELECT id FROM public.utilisateurs WHERE role = 'etudiant'"
+          );
+          userIdsToNotify = allEtudiants.map(user => user.id);
+          if (userIdsToNotify.length === 0) {
+            return res.status(404).json({
+              success: false,
+              message: 'Aucun étudiant trouvé.'
+            });
+          }
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: 'Type de destinataire invalide.'
+          });
+        }
+
+        // Insérer les notifications en base
+        const client = await db.pool.connect();
+        try {
+          await client.query('BEGIN');
+
+          const insertPromises = userIdsToNotify.map(userId => {
+            return client.query(
+              `INSERT INTO public.notifications (utilisateur_id, titre, message)
+               VALUES ($1, $2, $3)
+               RETURNING id`,
+              [userId, titre, message]
+            );
+          });
+
+          const results = await Promise.all(insertPromises);
+          const createdCount = results.reduce((count, result) => count + result.rowCount, 0);
+
+          await client.query('COMMIT');
+
+          res.status(201).json({
+            success: true,
+            message: `${createdCount} notification(s) créée(s) avec succès.`,
+            data: {
+              count: createdCount
+            }
+          });
+
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
+        }
+
+      } catch (error) {
+        console.error('[Vercel] Create admin notification error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la création de la notification',
           error: error.message
         });
       }
