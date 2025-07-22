@@ -547,9 +547,20 @@ const setupRoutes = async () => {
           FROM public.filieres f
           LEFT JOIN public.utilisateurs u ON f.id = u.filiere_id AND u.role = 'etudiant'
           GROUP BY f.id, f.nom
-          HAVING COUNT(u.id) > 0
           ORDER BY f.nom
         `);
+
+        console.log('[Vercel] Statistiques brutes:', {
+          totalEtudiants,
+          totalStages,
+          totalEntreprises,
+          totalOffres,
+          etudiantsParFiliere: etudiantsParFiliere.map(item => ({
+            filiere: item.filiere,
+            count: item.count,
+            countType: typeof item.count
+          }))
+        });
 
         res.json({
           success: true,
@@ -737,25 +748,27 @@ const setupRoutes = async () => {
 
         const { rows: stats } = await db.query(`
           SELECT
-            e.id,
-            e.nom,
-            e.ville,
-            COUNT(s.id) as nombre_stages,
-            COUNT(ps.id) as nombre_offres
+            e.nom as entreprise,
+            COUNT(s.id) as nb_stages
           FROM public.entreprises e
           LEFT JOIN public.stages s ON e.id = s.entreprise_id
-          LEFT JOIN public.propositions_stages ps ON e.id = ps.entreprise_id
-          GROUP BY e.id, e.nom, e.ville
-          ORDER BY nombre_stages DESC, nombre_offres DESC
+          GROUP BY e.id, e.nom
+          HAVING COUNT(s.id) > 0
+          ORDER BY nb_stages DESC
           LIMIT 10
         `);
+
+        console.log('[Vercel] Statistiques entreprises brutes:', stats.map(item => ({
+          entreprise: item.entreprise,
+          nb_stages: item.nb_stages,
+          nb_stages_type: typeof item.nb_stages
+        })));
 
         res.json({
           success: true,
           data: stats.map(item => ({
-            ...item,
-            nombre_stages: parseInt(item.nombre_stages) || 0,
-            nombre_offres: parseInt(item.nombre_offres) || 0
+            entreprise: item.entreprise,
+            nb_stages: parseInt(item.nb_stages) || 0
           }))
         });
       } catch (error) {
