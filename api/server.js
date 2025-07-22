@@ -1916,32 +1916,124 @@ pushRouter.post('/test', async (req, res) => {
 
     const userId = decoded.id;
 
-    // Import du service de notifications push
-    const PushNotificationServiceModule = await import('../src/services/PushNotificationService.js');
-    const PushNotificationService = PushNotificationServiceModule.default;
+    // Import du service de notifications push avec gestion d'erreur
+    let PushNotificationService;
+    try {
+      const PushNotificationServiceModule = await import('../src/services/PushNotificationService.js');
+      PushNotificationService = PushNotificationServiceModule.default;
+      console.log('[Vercel] ✅ PushNotificationService importé avec succès');
+    } catch (importError) {
+      console.error('[Vercel] ❌ Erreur import PushNotificationService:', importError);
+      return res.status(500).json({
+        success: false,
+        message: 'Service push non configuré - Erreur d\'import',
+        error: importError.message
+      });
+    }
+
+    // Vérifier que le service est bien configuré
+    if (!PushNotificationService) {
+      console.error('[Vercel] ❌ PushNotificationService non disponible');
+      return res.status(500).json({
+        success: false,
+        message: 'Service push non configuré - Service non disponible'
+      });
+    }
 
     console.log('[Vercel] 📡 Envoi notification de test pour utilisateur:', userId);
 
-    // Envoyer la notification de test
-    const result = await PushNotificationService.sendTestNotification(userId);
+    // Version simplifiée du test de notification directement dans Vercel
+    try {
+      // Import de webpush
+      const webpush = await import('web-push');
 
-    console.log('[Vercel] 📊 Résultat test notification:', result);
+      // Configuration VAPID
+      if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+        webpush.default.setVapidDetails(
+          process.env.VAPID_SUBJECT || 'mailto:admin@insti.edu',
+          process.env.VAPID_PUBLIC_KEY,
+          process.env.VAPID_PRIVATE_KEY
+        );
+        console.log('[Vercel] ✅ Configuration VAPID réussie pour test');
+      } else {
+        console.warn('[Vercel] ⚠️ Clés VAPID manquantes pour test');
+        return res.status(500).json({
+          success: false,
+          message: 'Clés VAPID non configurées'
+        });
+      }
 
-    if (result.success) {
+      // Récupérer les abonnements de l'utilisateur
+      const dbModule = await import('../src/config/db.js');
+      const db = dbModule.default;
+
+      const { rows: subscriptions } = await db.query(
+        'SELECT * FROM push_subscriptions WHERE utilisateur_id = $1 AND is_active = TRUE',
+        [userId]
+      );
+
+      console.log('[Vercel] 📊 Abonnements trouvés:', subscriptions.length);
+
+      if (subscriptions.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Aucun abonnement push actif trouvé'
+        });
+      }
+
+      // Payload de test
+      const testPayload = {
+        title: '🎓 Test INSTI',
+        message: 'Test de notification push depuis Vercel - ' + new Date().toLocaleTimeString(),
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/badge-urgent.png',
+        targetUrl: '/student/dashboard'
+      };
+
+      let sent = 0;
+      let failed = 0;
+      const results = [];
+
+      // Envoyer à tous les abonnements
+      for (const subscription of subscriptions) {
+        try {
+          const pushSubscription = {
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: subscription.p256dh_key,
+              auth: subscription.auth_key
+            }
+          };
+
+          await webpush.default.sendNotification(pushSubscription, JSON.stringify(testPayload));
+          sent++;
+          results.push({ endpoint: subscription.endpoint.substring(0, 50) + '...', success: true });
+          console.log('[Vercel] ✅ Notification envoyée vers:', subscription.endpoint.substring(0, 50) + '...');
+        } catch (error) {
+          failed++;
+          results.push({ endpoint: subscription.endpoint.substring(0, 50) + '...', success: false, error: error.message });
+          console.error('[Vercel] ❌ Erreur envoi vers:', subscription.endpoint.substring(0, 50) + '...', error.message);
+        }
+      }
+
       res.json({
-        success: true,
-        message: 'Notification de test envoyée avec succès',
+        success: sent > 0,
+        message: `Test terminé: ${sent} envoyées, ${failed} échouées`,
         data: {
           userId: userId,
-          sent: result.sent || 0,
-          failed: result.failed || 0,
-          details: result.details
+          sent: sent,
+          failed: failed,
+          total: subscriptions.length,
+          results: results
         }
       });
-    } else {
-      res.status(400).json({
+
+    } catch (testError) {
+      console.error('[Vercel] ❌ Erreur test notification:', testError);
+      res.status(500).json({
         success: false,
-        message: result.message || 'Impossible d\'envoyer la notification de test'
+        message: 'Erreur lors du test de notification',
+        error: testError.message
       });
     }
 
@@ -1997,9 +2089,20 @@ pushRouter.post('/subscribe', async (req, res) => {
 
     console.log('[Vercel] 💾 Enregistrement abonnement pour utilisateur:', userId);
 
-    // Import du service de notifications push
-    const PushNotificationServiceModule = await import('../src/services/PushNotificationService.js');
-    const PushNotificationService = PushNotificationServiceModule.default;
+    // Import du service de notifications push avec gestion d'erreur
+    let PushNotificationService;
+    try {
+      const PushNotificationServiceModule = await import('../src/services/PushNotificationService.js');
+      PushNotificationService = PushNotificationServiceModule.default;
+      console.log('[Vercel] ✅ PushNotificationService importé pour abonnement');
+    } catch (importError) {
+      console.error('[Vercel] ❌ Erreur import PushNotificationService pour abonnement:', importError);
+      return res.status(500).json({
+        success: false,
+        message: 'Service push non configuré pour abonnement',
+        error: importError.message
+      });
+    }
 
     const result = await PushNotificationService.subscribe(userId, subscription);
 
