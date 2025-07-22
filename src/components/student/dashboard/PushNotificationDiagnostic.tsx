@@ -25,6 +25,7 @@ const PushNotificationDiagnostic: React.FC = () => {
   const [diagnosticInfo, setDiagnosticInfo] = useState<DiagnosticInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [apiStatus, setApiStatus] = useState<string>('unknown');
 
   // Collecter les informations de diagnostic
   useEffect(() => {
@@ -66,7 +67,22 @@ const PushNotificationDiagnostic: React.FC = () => {
       }
     };
 
+    // Test de connectivité API
+    const testApiConnectivity = async () => {
+      try {
+        const response = await fetch('/api/test');
+        if (response.ok) {
+          setApiStatus('connected');
+        } else {
+          setApiStatus('error');
+        }
+      } catch (error) {
+        setApiStatus('offline');
+      }
+    };
+
     collectDiagnosticInfo();
+    testApiConnectivity();
   }, []);
 
   const showMessage = (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
@@ -89,9 +105,30 @@ const PushNotificationDiagnostic: React.FC = () => {
   const handleTest = async () => {
     setIsLoading(true);
     try {
-      await testNotification();
+      console.log('🧪 Test notification - Début');
+
+      const response = await fetch('/api/push/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      console.log('🧪 Test notification - Réponse:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Erreur de réponse' }));
+        console.error('🧪 Test notification - Erreur:', errorData);
+        throw new Error(`Erreur ${response.status}: ${errorData.message || response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('🧪 Test notification - Succès:', result);
+
       showMessage('✅ Notification de test envoyée! Vérifiez vos notifications.', 'success');
     } catch (error) {
+      console.error('🧪 Test notification - Exception:', error);
       showMessage(`❌ Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`, 'error');
     } finally {
       setIsLoading(false);
@@ -105,6 +142,32 @@ const PushNotificationDiagnostic: React.FC = () => {
       showMessage('✅ Permission accordée!', 'success');
     } catch (error) {
       showMessage(`❌ Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTestApi = async () => {
+    setIsLoading(true);
+    try {
+      console.log('🔗 Test connectivité API');
+
+      const response = await fetch('/api/test');
+      const result = await response.json();
+
+      console.log('🔗 Réponse API test:', result);
+
+      if (response.ok) {
+        setApiStatus('connected');
+        showMessage('✅ API Vercel accessible!', 'success');
+      } else {
+        setApiStatus('error');
+        showMessage('❌ Erreur API Vercel', 'error');
+      }
+    } catch (error) {
+      console.error('🔗 Erreur test API:', error);
+      setApiStatus('offline');
+      showMessage('❌ API Vercel inaccessible', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -181,6 +244,12 @@ const PushNotificationDiagnostic: React.FC = () => {
               Connexion : {diagnosticInfo?.isOnline ? 'En ligne' : 'Hors ligne'}
             </span>
           </div>
+          <div className="flex items-center gap-2">
+            <span>{getStatusIcon(apiStatus === 'connected')}</span>
+            <span className={getStatusColor(apiStatus)}>
+              API Vercel : {apiStatus === 'connected' ? 'Connectée' : apiStatus === 'error' ? 'Erreur' : apiStatus === 'offline' ? 'Hors ligne' : 'Test...'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -227,6 +296,15 @@ const PushNotificationDiagnostic: React.FC = () => {
 
       {/* Actions */}
       <div className="space-y-3">
+        {/* Test de connectivité API */}
+        <button
+          onClick={handleTestApi}
+          disabled={isLoading}
+          className="w-full bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 disabled:opacity-50"
+        >
+          {isLoading ? '⏳ Test...' : '🔗 Tester Connectivité API'}
+        </button>
+
         {notificationPermission !== 'granted' && (
           <button
             onClick={handleRequestPermission}
