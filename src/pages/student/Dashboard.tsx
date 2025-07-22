@@ -8,6 +8,8 @@ import ProfileTab from '@/components/student/dashboard/ProfileTab';
 import InternshipInfoTab from '@/components/student/dashboard/InternshipInfoTab';
 import FindInternshipTab from '@/components/student/dashboard/FindInternshipTab';
 import NotificationsTab from '@/components/student/dashboard/NotificationsTab';
+import PushNotificationDiagnostic from '@/components/student/dashboard/PushNotificationDiagnostic';
+import { usePWASimple } from '@/hooks/usePWASimple';
 
 import { InternshipOffer } from '@/types';
 
@@ -79,9 +81,54 @@ const StudentDashboard = () => {
   const [internshipOffers, setInternshipOffers] = useState<InternshipOffer[]>([]);
   const navigate = useNavigate();
 
+  // Hook PWA pour gérer les notifications push
+  const {
+    isSupported,
+    isSubscribed,
+    notificationPermission,
+    subscribeToPush,
+    requestNotificationPermission
+  } = usePWASimple();
+
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-  // PWA est maintenant géré automatiquement via le service worker
+  // Initialisation automatique des notifications push
+  useEffect(() => {
+    const initializePushNotifications = async () => {
+      // Attendre que l'utilisateur soit connecté
+      const token = localStorage.getItem('token');
+      if (!token || !isSupported) return;
+
+      try {
+        console.log('🔔 Initialisation des notifications push...');
+        console.log('État actuel:', { isSupported, isSubscribed, notificationPermission });
+
+        // Si les notifications ne sont pas encore autorisées, demander la permission
+        if (notificationPermission === 'default') {
+          console.log('📱 Demande de permission de notification...');
+          await requestNotificationPermission();
+        }
+
+        // Si les permissions sont accordées mais pas d'abonnement, s'abonner
+        if (notificationPermission === 'granted' && !isSubscribed) {
+          console.log('📡 Création de l\'abonnement push...');
+          await subscribeToPush();
+          console.log('✅ Abonnement push créé avec succès');
+        }
+
+        if (isSubscribed) {
+          console.log('✅ Notifications push déjà configurées');
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de l\'initialisation des notifications push:', error);
+        // Ne pas bloquer l'application si les notifications échouent
+      }
+    };
+
+    // Délai pour laisser le temps au service worker de s'enregistrer
+    const timer = setTimeout(initializePushNotifications, 2000);
+    return () => clearTimeout(timer);
+  }, [isSupported, isSubscribed, notificationPermission, requestNotificationPermission, subscribeToPush]);
 
   // Chargement des informations utilisateur
   useEffect(() => {
@@ -294,7 +341,12 @@ const StudentDashboard = () => {
                 />
               )}
               {activeTab === 'projets' && <ProjetsTab />}
-              {activeTab === 'notifications' && <NotificationsTab />}
+              {activeTab === 'notifications' && (
+                <div className="space-y-6">
+                  <NotificationsTab />
+                  <PushNotificationDiagnostic />
+                </div>
+              )}
             </>
           )}
         </main>

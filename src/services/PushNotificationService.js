@@ -121,11 +121,16 @@ class PushNotificationService {
             }
           };
 
+          console.log(`📡 Envoi notification push vers: ${subscription.endpoint.substring(0, 50)}...`);
+          console.log(`📦 Payload:`, payload);
+
           await webpush.sendNotification(pushSubscription, JSON.stringify(payload));
-          
-          results.push({ 
-            endpoint: subscription.endpoint, 
-            success: true 
+
+          console.log(`✅ Notification push envoyée avec succès vers: ${subscription.endpoint.substring(0, 50)}...`);
+
+          results.push({
+            endpoint: subscription.endpoint,
+            success: true
           });
 
           // Marquer comme envoyé dans la base de données (seulement pour les vraies notifications)
@@ -134,7 +139,12 @@ class PushNotificationService {
           }
 
         } catch (error) {
-          console.error(`Erreur envoi push vers ${subscription.endpoint}:`, error);
+          console.error(`❌ Erreur envoi push vers ${subscription.endpoint.substring(0, 50)}...:`, error);
+          console.error(`❌ Détails erreur:`, {
+            statusCode: error.statusCode,
+            message: error.message,
+            body: error.body
+          });
 
           // Si l'abonnement est invalide ou problème VAPID, le désactiver
           if (error.statusCode === 410 || error.statusCode === 404 || error.statusCode === 403) {

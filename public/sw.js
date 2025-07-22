@@ -20,30 +20,42 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Gestion des notifications push - Version simplifiée basée sur le tutoriel
+// Gestion des notifications push - Version améliorée avec debugging
 self.addEventListener('push', (event) => {
-  console.log('[SW] Notification push reçue:', event);
+  console.log('[SW] 📱 Notification push reçue:', event);
+  console.log('[SW] 📱 Event data exists:', !!event.data);
+  console.log('[SW] 📱 Registration active:', !!self.registration);
 
-  // Récupération des données comme dans le tutoriel
+  // Récupération des données avec gestion d'erreur améliorée
   let data = {};
   try {
-    data = event.data ? event.data.json() : {};
-    console.log('[SW] Données push reçues:', data);
+    if (event.data) {
+      data = event.data.json();
+      console.log('[SW] ✅ Données push parsées avec succès:', data);
+    } else {
+      console.warn('[SW] ⚠️ Aucune donnée dans l\'événement push');
+      data = {
+        title: 'INSTI - Notification',
+        message: 'Nouvelle notification INSTI',
+        notificationId: 'fallback-' + Date.now()
+      };
+    }
   } catch (error) {
-    console.error('[SW] Erreur parsing des données push:', error);
+    console.error('[SW] ❌ Erreur parsing des données push:', error);
     data = {
       title: 'INSTI - Notification',
-      message: 'Nouvelle notification INSTI',
-      notificationId: 'fallback-' + Date.now()
+      message: 'Nouvelle notification INSTI (erreur parsing)',
+      notificationId: 'error-' + Date.now()
     };
   }
 
-  // Configuration de la notification comme dans le tutoriel
+  // Configuration de la notification avec debugging amélioré
   const options = {
     body: data.message || 'Nouvelle notification INSTI',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/badge-urgent.png',
     requireInteraction: true,
+    vibrate: [200, 100, 200], // Vibration pour mobile
     actions: [
       {
         action: 'open',
@@ -52,14 +64,23 @@ self.addEventListener('push', (event) => {
     ],
     data: {
       url: data.targetUrl || '/student/dashboard',
-      notificationId: data.notificationId
+      notificationId: data.notificationId,
+      timestamp: Date.now()
     },
     tag: 'insti-notification'
   };
 
-  // Affichage de la notification comme dans le tutoriel
+  console.log('[SW] 🔔 Configuration de la notification:', options);
+
+  // Affichage de la notification avec gestion d'erreur
   event.waitUntil(
     self.registration.showNotification('🎓 INSTI - URGENT', options)
+      .then(() => {
+        console.log('[SW] ✅ Notification affichée avec succès');
+      })
+      .catch((error) => {
+        console.error('[SW] ❌ Erreur lors de l\'affichage de la notification:', error);
+      })
   );
 });
 

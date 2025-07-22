@@ -1,12 +1,18 @@
 #!/usr/bin/env node
 
 /**
- * Script de diagnostic pour les notifications push
+ * Script de diagnostic et test pour les notifications push
+ * Usage: node test-push-notifications.js [userId]
  */
 
 import fetch from 'node-fetch';
+import dotenv from 'dotenv';
 
-const VERCEL_URL = 'https://gestion-stages-v1.vercel.app/api';
+// Charger les variables d'environnement
+dotenv.config();
+
+const VERCEL_URL = process.env.VERCEL_URL || 'https://gestion-stagesv1.vercel.app/api';
+const ADMIN_TOKEN = process.env.ADMIN_TEST_TOKEN;
 
 const colors = {
   reset: '\x1b[0m',
