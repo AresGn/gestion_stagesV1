@@ -1944,9 +1944,12 @@ pushRouter.post('/test', async (req, res) => {
 
     // Version simplifiée du test de notification directement dans Vercel
     try {
+      console.log('[Vercel] 🔄 Étape 1: Import web-push...');
       // Import de webpush
       const webpush = await import('web-push');
+      console.log('[Vercel] ✅ Étape 1: web-push importé');
 
+      console.log('[Vercel] 🔄 Étape 2: Configuration VAPID...');
       // Configuration VAPID
       if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
         webpush.default.setVapidDetails(
@@ -1954,33 +1957,37 @@ pushRouter.post('/test', async (req, res) => {
           process.env.VAPID_PUBLIC_KEY,
           process.env.VAPID_PRIVATE_KEY
         );
-        console.log('[Vercel] ✅ Configuration VAPID réussie pour test');
+        console.log('[Vercel] ✅ Étape 2: Configuration VAPID réussie');
       } else {
-        console.warn('[Vercel] ⚠️ Clés VAPID manquantes pour test');
+        console.warn('[Vercel] ⚠️ Étape 2: Clés VAPID manquantes');
         return res.status(500).json({
           success: false,
           message: 'Clés VAPID non configurées'
         });
       }
 
+      console.log('[Vercel] 🔄 Étape 3: Import base de données...');
       // Récupérer les abonnements de l'utilisateur
       const dbModule = await import('../src/config/db.js');
       const db = dbModule.default;
+      console.log('[Vercel] ✅ Étape 3: Base de données importée');
 
+      console.log('[Vercel] 🔄 Étape 4: Requête abonnements pour userId:', userId);
       const { rows: subscriptions } = await db.query(
         'SELECT * FROM push_subscriptions WHERE utilisateur_id = $1 AND is_active = TRUE',
         [userId]
       );
-
-      console.log('[Vercel] 📊 Abonnements trouvés:', subscriptions.length);
+      console.log('[Vercel] ✅ Étape 4: Requête terminée, abonnements trouvés:', subscriptions.length);
 
       if (subscriptions.length === 0) {
+        console.log('[Vercel] ⚠️ Aucun abonnement actif trouvé pour userId:', userId);
         return res.status(400).json({
           success: false,
           message: 'Aucun abonnement push actif trouvé'
         });
       }
 
+      console.log('[Vercel] 🔄 Étape 5: Préparation payload...');
       // Payload de test
       const testPayload = {
         title: '🎓 Test INSTI',
@@ -1989,14 +1996,17 @@ pushRouter.post('/test', async (req, res) => {
         badge: '/icons/badge-urgent.png',
         targetUrl: '/student/dashboard'
       };
+      console.log('[Vercel] ✅ Étape 5: Payload préparé:', testPayload);
 
       let sent = 0;
       let failed = 0;
       const results = [];
 
+      console.log('[Vercel] 🔄 Étape 6: Envoi aux abonnements...');
       // Envoyer à tous les abonnements
       for (const subscription of subscriptions) {
         try {
+          console.log('[Vercel] 🔄 Envoi vers:', subscription.endpoint.substring(0, 50) + '...');
           const pushSubscription = {
             endpoint: subscription.endpoint,
             keys: {
@@ -2016,6 +2026,9 @@ pushRouter.post('/test', async (req, res) => {
         }
       }
 
+      console.log('[Vercel] ✅ Étape 6: Envoi terminé - Sent:', sent, 'Failed:', failed);
+
+      console.log('[Vercel] 🔄 Étape 7: Préparation réponse...');
       res.json({
         success: sent > 0,
         message: `Test terminé: ${sent} envoyées, ${failed} échouées`,
@@ -2027,13 +2040,25 @@ pushRouter.post('/test', async (req, res) => {
           results: results
         }
       });
+      console.log('[Vercel] ✅ Étape 7: Réponse envoyée avec succès');
 
     } catch (testError) {
       console.error('[Vercel] ❌ Erreur test notification:', testError);
+      console.error('[Vercel] ❌ Stack trace:', testError.stack);
+      console.error('[Vercel] ❌ Erreur détaillée:', {
+        name: testError.name,
+        message: testError.message,
+        code: testError.code,
+        statusCode: testError.statusCode
+      });
+
       res.status(500).json({
         success: false,
         message: 'Erreur lors du test de notification',
-        error: testError.message
+        error: testError.message,
+        errorName: testError.name,
+        errorCode: testError.code,
+        stack: process.env.NODE_ENV === 'development' ? testError.stack : undefined
       });
     }
 
