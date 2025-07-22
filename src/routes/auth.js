@@ -67,10 +67,10 @@ router.post('/register', [
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(mot_de_passe, salt);
 
-    // Insert user
+    // Insert user - convertir les chaînes vides en null pour email et whatsapp
     const { rows: result } = await query(
       'INSERT INTO public.utilisateurs (nom, prenom, telephone, email, matricule, filiere_id, mot_de_passe, whatsapp) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
-      [nom, prenom, telephone, email || null, matricule, filiere_id, hashedPassword, whatsapp || null]
+      [nom, prenom, telephone, (email && email.trim() !== '') ? email : null, matricule, filiere_id, hashedPassword, (whatsapp && whatsapp.trim() !== '') ? whatsapp : null]
     );
 
     // Generate JWT
