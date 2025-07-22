@@ -604,13 +604,17 @@ const setupRoutes = async () => {
 
         // Requête pour compter le total
         const countQuery = `
-          SELECT COUNT(*) as total
+          SELECT COUNT(DISTINCT u.id) as total
           FROM public.utilisateurs u
           LEFT JOIN public.filieres f ON u.filiere_id = f.id
+          LEFT JOIN public.stages s ON s.etudiant_id = u.id
+          LEFT JOIN public.entreprises e ON s.entreprise_id = e.id
+          LEFT JOIN public.utilisateurs ms ON s.maitre_stage_id = ms.id
+          LEFT JOIN public.utilisateurs mm ON s.maitre_memoire_id = mm.id
           ${whereClause}
         `;
 
-        // Requête pour récupérer les étudiants
+        // Requête pour récupérer les étudiants avec toutes les informations nécessaires
         const dataQuery = `
           SELECT
             u.id,
@@ -621,9 +625,31 @@ const setupRoutes = async () => {
             u.telephone,
             u.created_at,
             u.filiere_id,
-            f.nom as filiere_nom
+            f.nom as filiere_nom,
+            s.theme_memoire as stage_sujet,
+            s.date_debut as stage_date_debut,
+            s.date_fin as stage_date_fin,
+            COALESCE(s.statut, 'non_defini') as statut,
+            e.nom as entreprise_nom,
+            e.adresse as entreprise_adresse,
+            e.telephone as entreprise_telephone,
+            e.email as entreprise_email,
+            e.departement as entreprise_departement,
+            e.commune as entreprise_commune,
+            e.quartier as entreprise_quartier,
+            ms.nom as maitre_stage_nom,
+            ms.prenom as maitre_stage_prenom,
+            ms.email as maitre_stage_email,
+            ms.telephone as maitre_stage_telephone,
+            mm.nom as maitre_memoire_nom,
+            mm.prenom as maitre_memoire_prenom,
+            mm.email as maitre_memoire_email
           FROM public.utilisateurs u
           LEFT JOIN public.filieres f ON u.filiere_id = f.id
+          LEFT JOIN public.stages s ON s.etudiant_id = u.id
+          LEFT JOIN public.entreprises e ON s.entreprise_id = e.id
+          LEFT JOIN public.utilisateurs ms ON s.maitre_stage_id = ms.id
+          LEFT JOIN public.utilisateurs mm ON s.maitre_memoire_id = mm.id
           ${whereClause}
           ORDER BY u.nom, u.prenom
           LIMIT $${paramIndex} OFFSET $${paramIndex + 1}

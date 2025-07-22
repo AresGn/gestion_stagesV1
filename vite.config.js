@@ -44,6 +44,9 @@ VitePWA({
       "@": fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  css: {
+    postcss: './postcss.config.js',
+  },
   server: {
     port: 5173,
     host: '0.0.0.0', // Écouter sur toutes les interfaces

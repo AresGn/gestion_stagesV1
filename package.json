@@ -30,6 +30,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@neondatabase/serverless": "^1.0.0",
+    "@tailwindcss/postcss": "^4.1.11",
     "autoprefixer": "^10.4.21",
     "axios": "^1.10.0",
     "bcrypt": "^6.0.0",
@@ -69,7 +70,6 @@
   "devDependencies": {
     "@eslint/js": "^9.25.0",
     "@shadcn/ui": "^0.0.4",
-    "@tailwindcss/postcss": "^4.1.7",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^4.4.1",
