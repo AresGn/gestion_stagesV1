@@ -1885,27 +1885,196 @@ pushRouter.get('/subscriptions', async (req, res) => {
   }
 });
 
-// Route pour tester les notifications push
+// Route pour tester les notifications push avec authentification
 pushRouter.post('/test', async (req, res) => {
   try {
-    // Pour l'instant, utiliser un userId par défaut (à corriger plus tard avec l'auth)
-    const userId = req.body.userId || 1;
-    const { message } = req.body;
+    console.log('[Vercel] 🧪 Test notification push demandé');
 
-    res.json({
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification manquant'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = await import('jsonwebtoken');
+    let decoded;
+
+    try {
+      decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+      console.log('[Vercel] 🔐 Token valide pour utilisateur:', decoded.id);
+    } catch (jwtError) {
+      console.error('[Vercel] ❌ Token invalide:', jwtError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+
+    const userId = decoded.id;
+
+    // Import du service de notifications push
+    const PushNotificationServiceModule = await import('../src/services/PushNotificationService.js');
+    const PushNotificationService = PushNotificationServiceModule.default;
+
+    console.log('[Vercel] 📡 Envoi notification de test pour utilisateur:', userId);
+
+    // Envoyer la notification de test
+    const result = await PushNotificationService.sendTestNotification(userId);
+
+    console.log('[Vercel] 📊 Résultat test notification:', result);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Notification de test envoyée avec succès',
+        data: {
+          userId: userId,
+          sent: result.sent || 0,
+          failed: result.failed || 0,
+          details: result.details
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: result.message || 'Impossible d\'envoyer la notification de test'
+      });
+    }
+
+  } catch (error) {
+    console.error('[Vercel] ❌ Erreur test push:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'envoi de la notification de test',
+      error: error.message
+    });
+  }
+});
+
+// Route pour s'abonner aux notifications push avec authentification
+pushRouter.post('/subscribe', async (req, res) => {
+  try {
+    console.log('[Vercel] 📱 Demande d\'abonnement push');
+
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification manquant'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = await import('jsonwebtoken');
+    let decoded;
+
+    try {
+      decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+      console.log('[Vercel] 🔐 Token valide pour utilisateur:', decoded.id);
+    } catch (jwtError) {
+      console.error('[Vercel] ❌ Token invalide:', jwtError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+
+    const userId = decoded.id;
+    const subscription = req.body;
+
+    // Validation de l'abonnement
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({
+        success: false,
+        message: 'Données d\'abonnement invalides'
+      });
+    }
+
+    console.log('[Vercel] 💾 Enregistrement abonnement pour utilisateur:', userId);
+
+    // Import du service de notifications push
+    const PushNotificationServiceModule = await import('../src/services/PushNotificationService.js');
+    const PushNotificationService = PushNotificationServiceModule.default;
+
+    const result = await PushNotificationService.subscribe(userId, subscription);
+
+    console.log('[Vercel] ✅ Abonnement enregistré:', result);
+
+    res.status(200).json({
       success: true,
-      message: 'Test de notification push envoyé',
-      results: {
-        userId: userId,
-        testMessage: message || 'Test de notification push'
-      }
+      message: result.message,
+      data: { userId, endpoint: subscription.endpoint }
     });
 
   } catch (error) {
-    console.error('[Vercel] Push test error:', error);
+    console.error('[Vercel] ❌ Erreur abonnement push:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors du test push',
+      message: 'Erreur lors de l\'abonnement aux notifications push',
+      error: error.message
+    });
+  }
+});
+
+// Route pour nettoyer les anciens abonnements
+pushRouter.post('/clean-subscriptions', async (req, res) => {
+  try {
+    console.log('[Vercel] 🧹 Nettoyage des anciens abonnements');
+
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification manquant'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = await import('jsonwebtoken');
+    let decoded;
+
+    try {
+      decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+      console.log('[Vercel] 🔐 Token valide pour utilisateur:', decoded.id);
+    } catch (jwtError) {
+      console.error('[Vercel] ❌ Token invalide:', jwtError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+
+    const userId = decoded.id;
+
+    // Import de la base de données
+    const dbModule = await import('../src/config/db.js');
+    const db = dbModule.default;
+
+    // Désactiver les anciens abonnements pour cet utilisateur
+    const result = await db.query(
+      'UPDATE push_subscriptions SET is_active = FALSE WHERE utilisateur_id = $1',
+      [userId]
+    );
+
+    console.log('[Vercel] 🗑️ Abonnements nettoyés pour utilisateur:', userId, 'Lignes affectées:', result.rowCount);
+
+    res.json({
+      success: true,
+      message: 'Anciens abonnements nettoyés',
+      cleaned: result.rowCount
+    });
+
+  } catch (error) {
+    console.error('[Vercel] ❌ Erreur nettoyage abonnements:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du nettoyage des abonnements',
       error: error.message
     });
   }
