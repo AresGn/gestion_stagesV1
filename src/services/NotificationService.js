@@ -20,8 +20,8 @@ class NotificationService {
    */
   async createNotification(userId, title, message, type = 'push', targetUrl = null) {
     try {
-      // Calculer l'heure de programmation SMS (12h après maintenant)
-      const scheduledSmsAt = new Date(Date.now() + 12 * 60 * 60 * 1000); // +12h
+      // Calculer l'heure de programmation SMS (15 secondes après maintenant pour test)
+      const scheduledSmsAt = new Date(Date.now() + 15 * 1000); // +15 secondes
 
       const { rows: result } = await db.query(`
         INSERT INTO notifications (

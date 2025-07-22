@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import SMSTestComponent from './SMSTestComponent';
 
 // TODO: Déplacer vers des fichiers d'interfaces partagés
 interface User { // Utilisateur simplifié pour la sélection
@@ -404,6 +405,11 @@ const AdminNotificationsTab: React.FC = () => {
         ) : (
             <p className="text-center text-gray-500 py-8">Aucune notification dans l'historique.</p>
         )}
+      </div>
+
+      {/* Composant de test SMS */}
+      <div className="mt-8">
+        <SMSTestComponent API_BASE_URL={API_BASE_URL} />
       </div>
     </div>
   );

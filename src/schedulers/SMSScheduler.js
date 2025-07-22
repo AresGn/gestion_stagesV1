@@ -32,8 +32,8 @@ class SMSScheduler {
 
     console.log('🚀 Démarrage du SMS Scheduler...');
 
-    // Vérifier toutes les 10 minutes
-    this.cronJob = cron.schedule('*/10 * * * *', async () => {
+    // Vérifier toutes les 10 secondes pour test rapide
+    this.cronJob = cron.schedule('*/10 * * * * *', async () => {
       await this.checkAndSendSMS();
     }, {
       scheduled: false,
@@ -44,7 +44,7 @@ class SMSScheduler {
     this.cronJob.start();
     this.isRunning = true;
 
-    console.log('✅ SMS Scheduler démarré - vérification toutes les 10 minutes');
+    console.log('✅ SMS Scheduler démarré - vérification toutes les 10 secondes (mode test)');
     console.log('🕐 Timezone: Africa/Porto-Novo (Bénin)');
     
     // Faire une vérification immédiate

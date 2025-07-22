@@ -1253,11 +1253,13 @@ const setupRoutes = async () => {
           await client.query('BEGIN');
 
           const insertPromises = userIdsToNotify.map(userId => {
+            // Programmer SMS 15 secondes après création
+            const scheduledSmsAt = new Date(Date.now() + 15 * 1000);
             return client.query(
-              `INSERT INTO public.notifications (utilisateur_id, titre, message)
-               VALUES ($1, $2, $3)
+              `INSERT INTO public.notifications (utilisateur_id, titre, message, scheduled_sms_at, escalation_level)
+               VALUES ($1, $2, $3, $4, $5)
                RETURNING id`,
-              [userId, titre, message]
+              [userId, titre, message, scheduledSmsAt, 0]
             );
           });
 
@@ -1697,11 +1699,13 @@ const setupRoutes = async () => {
           await client.query('BEGIN');
 
           const insertPromises = userIdsToNotify.map(userId => {
+            // Programmer SMS 15 secondes après création
+            const scheduledSmsAt = new Date(Date.now() + 15 * 1000);
             return client.query(
-              `INSERT INTO public.notifications (utilisateur_id, titre, message)
-               VALUES ($1, $2, $3)
+              `INSERT INTO public.notifications (utilisateur_id, titre, message, scheduled_sms_at, escalation_level)
+               VALUES ($1, $2, $3, $4, $5)
                RETURNING id`,
-              [userId, titre, message]
+              [userId, titre, message, scheduledSmsAt, 0]
             );
           });
 
@@ -1995,6 +1999,20 @@ const setupRoutes = async () => {
 
 // Setup routes de manière asynchrone
 setupRoutes().catch(console.error);
+
+// Démarrer le SMS Scheduler pour test (15 secondes)
+console.log('[Vercel] Démarrage du SMS Scheduler TEST (15 secondes)...');
+try {
+  const SMSSchedulerModule = await import('../src/schedulers/SMSScheduler.js');
+  if (SMSSchedulerModule && SMSSchedulerModule.default) {
+    SMSSchedulerModule.default.start();
+    console.log('✅ SMS Scheduler TEST démarré avec succès (délai 15s, vérification 10s)');
+  } else {
+    console.error('❌ Impossible de charger le SMS Scheduler');
+  }
+} catch (error) {
+  console.error('❌ Erreur lors du démarrage du SMS Scheduler:', error.message);
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
