@@ -1790,7 +1790,7 @@ pushRouter.get('/vapid-key', (req, res) => {
 });
 
 // Route pour s'abonner aux notifications push
-pushRouter.post('/subscribe', authenticateNotifications, async (req, res) => {
+pushRouter.post('/subscribe', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const subscription = req.body;
@@ -1848,7 +1848,7 @@ pushRouter.post('/subscribe', authenticateNotifications, async (req, res) => {
 });
 
 // Route pour lister les abonnements push
-pushRouter.get('/subscriptions', authenticateNotifications, async (req, res) => {
+pushRouter.get('/subscriptions', requireAuth, async (req, res) => {
   try {
     const dbModule = await import('../src/config/db.js');
     const db = dbModule.default;
@@ -1885,7 +1885,7 @@ pushRouter.get('/subscriptions', authenticateNotifications, async (req, res) => 
 });
 
 // Route pour tester les notifications push
-pushRouter.post('/test', authenticateNotifications, async (req, res) => {
+pushRouter.post('/test', requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
     const { message } = req.body;
