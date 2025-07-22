@@ -681,16 +681,14 @@ const setupRoutes = async () => {
 
         res.json({
           success: true,
-          data: {
-            etudiants: dataResult.rows,
-            pagination: {
-              page,
-              limit,
-              total,
-              totalPages,
-              hasNext: page < totalPages,
-              hasPrev: page > 1
-            }
+          data: dataResult.rows, // Retourner directement le tableau pour compatibilité
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1
           }
         });
       } catch (error) {
@@ -698,6 +696,54 @@ const setupRoutes = async () => {
         res.status(500).json({
           success: false,
           message: 'Erreur lors de la récupération des étudiants',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour la recherche d'étudiants
+    adminRouter.get('/etudiants/search', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { q: term } = req.query;
+
+        if (!term || term.trim() === '') {
+          return res.status(400).json({
+            success: false,
+            message: 'Le terme de recherche ne peut pas être vide.'
+          });
+        }
+
+        const searchTerm = `%${term}%`;
+        const { rows: etudiants } = await db.query(`
+          SELECT
+            u.id,
+            u.matricule,
+            u.nom,
+            u.prenom,
+            f.nom as filiere
+          FROM
+            public.utilisateurs u
+          LEFT JOIN
+            public.filieres f ON u.filiere_id = f.id
+          WHERE
+            u.role = 'etudiant' AND
+            (u.nom ILIKE $1 OR u.prenom ILIKE $1 OR u.matricule ILIKE $1)
+          ORDER BY u.nom, u.prenom
+          LIMIT 10
+        `, [searchTerm]);
+
+        res.json({
+          success: true,
+          data: etudiants
+        });
+      } catch (error) {
+        console.error('[Vercel] Search etudiants error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la recherche des étudiants',
           error: error.message
         });
       }
@@ -957,6 +1003,68 @@ const setupRoutes = async () => {
         res.status(500).json({
           success: false,
           message: 'Erreur lors de la récupération des propositions',
+          error: error.message
+        });
+      }
+    });
+
+    // Route POST pour créer une proposition de stage
+    adminRouter.post('/propositions', requireAdmin, async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const {
+          titre,
+          description,
+          requirements,
+          entreprise_nom,
+          entreprise_id,
+          location,
+          duration,
+          filiere_id,
+          statut = 'active'
+        } = req.body;
+
+        // Validation des données
+        if (!titre || !description || !entreprise_nom) {
+          return res.status(400).json({
+            success: false,
+            message: 'Le titre, la description et le nom de l\'entreprise sont requis'
+          });
+        }
+
+        const { rows: result } = await db.query(`
+          INSERT INTO public.propositions_stages (
+            titre,
+            description,
+            requirements,
+            entreprise_nom,
+            entreprise_id,
+            location,
+            duration,
+            filiere_id,
+            statut,
+            date_publication,
+            created_at,
+            updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW(), NOW())
+          RETURNING *
+        `, [titre, description, requirements, entreprise_nom, entreprise_id, location, duration, filiere_id, statut]);
+
+        res.status(201).json({
+          success: true,
+          message: 'Proposition de stage créée avec succès',
+          data: {
+            id: result[0].id,
+            proposition: result[0]
+          }
+        });
+      } catch (error) {
+        console.error('[Vercel] Create proposition error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la création de la proposition de stage',
           error: error.message
         });
       }
@@ -1744,6 +1852,52 @@ const setupRoutes = async () => {
         res.status(500).json({
           success: false,
           message: 'Erreur lors de la récupération des propositions de thèmes',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour récupérer les filières (publique)
+    projetsPublicsRouter.get('/filieres', async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: filieres } = await db.query(`
+          SELECT id, nom, description
+          FROM public.filieres
+          ORDER BY nom
+        `);
+
+        res.json(filieres);
+      } catch (error) {
+        console.error('[Vercel] Filieres error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des filières',
+          error: error.message
+        });
+      }
+    });
+
+    // Route pour récupérer les entreprises (publique)
+    projetsPublicsRouter.get('/entreprises', async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: entreprises } = await db.query(`
+          SELECT id, nom, secteur, ville, adresse, telephone, email, site_web
+          FROM public.entreprises
+          ORDER BY nom
+        `);
+
+        res.json(entreprises);
+      } catch (error) {
+        console.error('[Vercel] Entreprises error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des entreprises',
           error: error.message
         });
       }
