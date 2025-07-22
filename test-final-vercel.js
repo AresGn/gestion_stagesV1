@@ -133,11 +133,11 @@ const testFinalVercel = async () => {
 
   // Test création notification
   const createNotification = await testRoute(`${API_BASE}/admin/notifications`, adminToken, 'POST', {
-    type: 'information',
+    destinataire: {
+      type: 'tous'
+    },
     titre: 'Test Final Vercel',
-    message: 'Test de création de notification après corrections',
-    priorite: 'normale',
-    destinataire_type: 'tous'
+    message: 'Test de création de notification après corrections'
   });
 
   logResult('Création notification', createNotification.success, 

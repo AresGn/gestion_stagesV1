@@ -598,7 +598,11 @@ const setupRoutes = async () => {
 
         // Filtres
         const filiere = req.query.filiere;
-        const search = req.query.search;
+        const search = req.query.search || req.query.recherche; // Support des deux noms
+        const statut = req.query.statut;
+        const entreprise_nom = req.query.entreprise_nom;
+        const maitre_stage_nom = req.query.maitre_stage_nom;
+        const maitre_memoire_nom = req.query.maitre_memoire_nom;
 
         let whereClause = "WHERE u.role = 'etudiant'";
         let queryParams = [];
@@ -613,6 +617,30 @@ const setupRoutes = async () => {
         if (search) {
           whereClause += ` AND (u.nom ILIKE $${paramIndex} OR u.prenom ILIKE $${paramIndex} OR u.matricule ILIKE $${paramIndex})`;
           queryParams.push(`%${search}%`);
+          paramIndex++;
+        }
+
+        if (statut) {
+          whereClause += ` AND s.statut = $${paramIndex}`;
+          queryParams.push(statut);
+          paramIndex++;
+        }
+
+        if (entreprise_nom) {
+          whereClause += ` AND s.entreprise_nom ILIKE $${paramIndex}`;
+          queryParams.push(`%${entreprise_nom}%`);
+          paramIndex++;
+        }
+
+        if (maitre_stage_nom) {
+          whereClause += ` AND s.maitre_stage_nom ILIKE $${paramIndex}`;
+          queryParams.push(`%${maitre_stage_nom}%`);
+          paramIndex++;
+        }
+
+        if (maitre_memoire_nom) {
+          whereClause += ` AND s.maitre_memoire_nom ILIKE $${paramIndex}`;
+          queryParams.push(`%${maitre_memoire_nom}%`);
           paramIndex++;
         }
 
@@ -1898,6 +1926,29 @@ const setupRoutes = async () => {
         res.status(500).json({
           success: false,
           message: 'Erreur lors de la récupération des entreprises',
+          error: error.message
+        });
+      }
+    });
+
+    // Route directe pour les filières (pour éviter les conflits de routage)
+    app.get('/api/filieres', async (req, res) => {
+      try {
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        const { rows: filieres } = await db.query(`
+          SELECT id, nom, description
+          FROM public.filieres
+          ORDER BY nom
+        `);
+
+        res.json(filieres);
+      } catch (error) {
+        console.error('[Vercel] Direct filieres error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la récupération des filières',
           error: error.message
         });
       }

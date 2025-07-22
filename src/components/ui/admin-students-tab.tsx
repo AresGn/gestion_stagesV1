@@ -510,7 +510,13 @@ export function AdminStudentsTab() {
       params.append('limit', pagination.limit.toString());
       params.append('sortField', sortField);
       params.append('sortOrder', sortOrder);
-      
+
+      console.log('Fetching students with filters:', {
+        searchQuery, filterFiliere, filterStatut, filterEntreprise,
+        filterMaitreStage, filterMaitreMemoire, sortField, sortOrder
+      });
+      console.log('API URL:', `/api/admin/etudiants?${params.toString()}`);
+
       // Appel de l'API
       const response = await fetch(`/api/admin/etudiants?${params.toString()}`, {
         headers: {
