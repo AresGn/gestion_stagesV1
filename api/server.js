@@ -806,13 +806,13 @@ const setupRoutes = async () => {
           LIMIT 5
         `);
 
-        // Convertir en format attendu par le frontend
+        // Convertir en format attendu par le frontend avec les bons types
         stages.forEach((stage, index) => {
           activites.push({
             id: stage.id + 1000, // Éviter les conflits d'ID
-            type_activite: 'stage',
-            description: `Stage "${stage.theme_memoire}" par ${stage.etudiant_prenom} ${stage.etudiant_nom}`,
-            valeur: null,
+            type_activite: 'convention', // Type reconnu par le frontend (couleur purple)
+            description: `Stage "${stage.theme_memoire || 'Sans titre'}" par ${stage.etudiant_prenom} ${stage.etudiant_nom}`,
+            valeur: stage.entreprise_nom || null,
             date_activite: stage.created_at,
             user_id: null
           });
@@ -833,11 +833,35 @@ const setupRoutes = async () => {
         projets.forEach((projet, index) => {
           activites.push({
             id: projet.id + 2000, // Éviter les conflits d'ID
-            type_activite: 'projet',
-            description: `Projet "${projet.titre}" par ${projet.auteur}`,
+            type_activite: 'memoire', // Type reconnu par le frontend (couleur indigo)
+            description: `Projet "${projet.titre || 'Sans titre'}" par ${projet.auteur || 'Auteur inconnu'}`,
             valeur: null,
             date_activite: projet.created_at,
             user_id: null
+          });
+        });
+
+        // Ajouter quelques activités d'inscription récentes pour plus de variété
+        const { rows: inscriptions } = await db.query(`
+          SELECT
+            id,
+            nom,
+            prenom,
+            created_at
+          FROM public.utilisateurs
+          WHERE role = 'etudiant'
+          ORDER BY created_at DESC
+          LIMIT 2
+        `);
+
+        inscriptions.forEach((user, index) => {
+          activites.push({
+            id: user.id + 3000, // Éviter les conflits d'ID
+            type_activite: 'inscription', // Type reconnu par le frontend (couleur green)
+            description: `Inscription de ${user.prenom} ${user.nom}`,
+            valeur: null,
+            date_activite: user.created_at,
+            user_id: user.id
           });
         });
 
@@ -868,16 +892,33 @@ const setupRoutes = async () => {
           SELECT
             f.id as filiere_id,
             f.nom as filiere_nom,
-            COUNT(u.id) as nombre_etudiants
+            COUNT(DISTINCT u.id) as nb_etudiants,
+            COUNT(DISTINCT s.id) as nb_stages_trouves
           FROM public.filieres f
           LEFT JOIN public.utilisateurs u ON f.id = u.filiere_id AND u.role = 'etudiant'
+          LEFT JOIN public.stages s ON u.id = s.etudiant_id
           GROUP BY f.id, f.nom
           ORDER BY f.nom
         `);
 
+        console.log('[Vercel] Paramètres filière bruts:', filieres.map(item => ({
+          filiere_nom: item.filiere_nom,
+          nb_etudiants: item.nb_etudiants,
+          nb_stages_trouves: item.nb_stages_trouves,
+          types: {
+            nb_etudiants: typeof item.nb_etudiants,
+            nb_stages_trouves: typeof item.nb_stages_trouves
+          }
+        })));
+
         res.json({
           success: true,
-          data: filieres
+          data: filieres.map(item => ({
+            filiere_id: item.filiere_id,
+            filiere_nom: item.filiere_nom,
+            nb_etudiants: parseInt(item.nb_etudiants) || 0,
+            nb_stages_trouves: parseInt(item.nb_stages_trouves) || 0
+          }))
         });
       } catch (error) {
         console.error('[Vercel] Parametres filiere error:', error);
