@@ -15,6 +15,25 @@ const SMSTestComponent: React.FC<SMSTestComponentProps> = ({ API_BASE_URL }) => 
     setTimeout(() => setMessage(''), 5000);
   };
 
+  // Test de connectivité des routes SMS
+  const handleTestRoutes = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/sms/ping`);
+      const result = await response.json();
+
+      if (result.success) {
+        showMessage(`✅ Routes SMS OK: ${result.routes.join(', ')}`, 'success');
+      } else {
+        showMessage(`❌ Erreur routes: ${result.message}`, 'error');
+      }
+    } catch (error) {
+      showMessage(`❌ Routes inaccessibles: ${error instanceof Error ? error.message : 'Erreur inconnue'}`, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Test direct SMS
   const handleTestDirectSMS = async () => {
     if (!phoneNumber.trim()) {
@@ -188,6 +207,14 @@ const SMSTestComponent: React.FC<SMSTestComponentProps> = ({ API_BASE_URL }) => 
 
       {/* Actions */}
       <div className="space-y-3">
+        <button
+          onClick={handleTestRoutes}
+          disabled={isLoading}
+          className="w-full bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 disabled:opacity-50"
+        >
+          {isLoading ? '⏳ Test...' : '🔗 Test Routes SMS'}
+        </button>
+
         <button
           onClick={handleTestDirectSMS}
           disabled={isLoading}

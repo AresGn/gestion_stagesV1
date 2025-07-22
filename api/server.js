@@ -2569,26 +2569,49 @@ smsRouter.post('/test', async (req, res) => {
       });
     }
 
-    // Import du service TextBee
-    const TextBeeServiceModule = await import('../src/services/TextBeeService.js');
-    const TextBeeService = TextBeeServiceModule.default;
+    // Utiliser directement l'API TextBee comme le script qui fonctionne
+    const API_KEY = process.env.TEXTBEE_API_KEY;
+    const DEVICE_ID = process.env.TEXTBEE_DEVICE_ID;
 
-    console.log('[Vercel] 📤 Envoi SMS de test vers:', phoneNumber);
-
-    const result = await TextBeeService.sendSMS(phoneNumber, message);
-
-    if (result.success) {
-      res.json({
-        success: true,
-        message: 'SMS de test envoyé avec succès',
-        data: result
-      });
-    } else {
-      res.status(400).json({
+    if (!API_KEY || !DEVICE_ID) {
+      return res.status(500).json({
         success: false,
-        message: result.error || 'Erreur lors de l\'envoi du SMS'
+        message: 'Clés API TextBee non configurées'
       });
     }
+
+    console.log('[Vercel] 📤 Envoi SMS direct vers:', phoneNumber);
+    console.log('[Vercel] 📝 Message:', message);
+
+    // Import axios pour l'appel API
+    const axios = await import('axios');
+
+    // Appel direct à l'API TextBee (comme le script qui fonctionne)
+    const response = await axios.default.post(
+      `https://api.textbee.dev/api/v1/gateway/devices/${DEVICE_ID}/send-sms`,
+      {
+        recipients: [phoneNumber],
+        message: message
+      },
+      {
+        headers: {
+          'x-api-key': API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('[Vercel] ✅ Réponse TextBee:', response.data);
+
+    res.json({
+      success: true,
+      message: 'SMS envoyé avec succès via TextBee API',
+      data: {
+        phoneNumber: phoneNumber,
+        messageLength: message.length,
+        textbeeResponse: response.data
+      }
+    });
 
   } catch (error) {
     console.error('[Vercel] ❌ Erreur test SMS:', error);
@@ -2653,6 +2676,97 @@ smsRouter.get('/scheduler/status', async (req, res) => {
   }
 });
 
+// Route pour test SMS direct avec TextBee API
+smsRouter.post('/test-direct', async (req, res) => {
+  try {
+    console.log('[Vercel] 📱 Test SMS direct avec TextBee API');
+
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification manquant'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = await import('jsonwebtoken');
+
+    try {
+      jwt.default.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+
+    // Configuration TextBee avec vos clés API
+    const API_KEY = process.env.TEXTBEE_API_KEY;
+    const DEVICE_ID = process.env.TEXTBEE_DEVICE_ID;
+
+    if (!API_KEY || !DEVICE_ID) {
+      return res.status(500).json({
+        success: false,
+        message: 'Clés API TextBee non configurées'
+      });
+    }
+
+    // Numéro de test et message
+    const phoneNumber = '+229 51885851';
+    const message = `🧪 Test SMS INSTI - ${new Date().toLocaleTimeString()} - Système SMS automatique fonctionnel !`;
+
+    console.log('[Vercel] 📤 Envoi SMS direct vers:', phoneNumber);
+    console.log('[Vercel] 📝 Message:', message);
+
+    // Import axios pour l'appel API
+    const axios = await import('axios');
+
+    // Appel direct à l'API TextBee
+    const response = await axios.default.post(
+      `https://api.textbee.dev/api/v1/gateway/devices/${DEVICE_ID}/send-sms`,
+      {
+        recipients: [phoneNumber],
+        message: message
+      },
+      {
+        headers: {
+          'x-api-key': API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('[Vercel] ✅ Réponse TextBee:', response.data);
+
+    res.json({
+      success: true,
+      message: 'SMS envoyé avec succès via TextBee API',
+      data: {
+        phoneNumber: phoneNumber,
+        messageLength: message.length,
+        textbeeResponse: response.data
+      }
+    });
+
+  } catch (error) {
+    console.error('[Vercel] ❌ Erreur test SMS direct:', error);
+
+    let errorMessage = 'Erreur lors de l\'envoi du SMS';
+    if (error.response) {
+      errorMessage = `Erreur TextBee: ${error.response.status} - ${error.response.data?.message || error.response.statusText}`;
+      console.error('[Vercel] ❌ Réponse erreur TextBee:', error.response.data);
+    }
+
+    res.status(500).json({
+      success: false,
+      message: errorMessage,
+      error: error.message
+    });
+  }
+});
+
 // Route pour forcer une vérification du scheduler
 smsRouter.post('/scheduler/force-check', async (req, res) => {
   try {
@@ -2679,12 +2793,24 @@ smsRouter.post('/scheduler/force-check', async (req, res) => {
       });
     }
 
-    // Simuler une vérification forcée
-    console.log('[Vercel] ✅ Vérification forcée simulée');
+    // Test SMS direct au lieu de simuler
+    console.log('[Vercel] 📱 Envoi SMS de test au lieu de vérification forcée');
+
+    // Rediriger vers le test SMS direct
+    const testResponse = await fetch(`${req.protocol}://${req.get('host')}/api/sms/test-direct`, {
+      method: 'POST',
+      headers: {
+        'Authorization': req.headers.authorization,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const testResult = await testResponse.json();
 
     res.json({
-      success: true,
-      message: 'Vérification forcée exécutée'
+      success: testResult.success,
+      message: testResult.success ? 'SMS de test envoyé au lieu de vérification forcée' : testResult.message,
+      data: testResult.data
     });
 
   } catch (error) {
@@ -2695,6 +2821,16 @@ smsRouter.post('/scheduler/force-check', async (req, res) => {
       error: error.message
     });
   }
+});
+
+// Route de test SMS simple (sans auth pour debug)
+smsRouter.get('/ping', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Routes SMS fonctionnelles',
+    timestamp: new Date().toISOString(),
+    routes: ['/test', '/test-direct', '/scheduler/status', '/scheduler/force-check']
+  });
 });
 
 app.use('/api/sms', smsRouter);
