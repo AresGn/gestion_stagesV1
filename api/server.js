@@ -554,11 +554,14 @@ const setupRoutes = async () => {
         res.json({
           success: true,
           data: {
-            totalEtudiants: parseInt(totalEtudiants),
-            totalStages: parseInt(totalStages),
-            totalEntreprises: parseInt(totalEntreprises),
-            totalOffres: parseInt(totalOffres),
-            etudiantsParFiliere: etudiantsParFiliere
+            totalEtudiants: parseInt(totalEtudiants) || 0,
+            totalStages: parseInt(totalStages) || 0,
+            totalEntreprises: parseInt(totalEntreprises) || 0,
+            totalOffres: parseInt(totalOffres) || 0,
+            etudiantsParFiliere: etudiantsParFiliere.map(item => ({
+              ...item,
+              count: parseInt(item.count) || 0
+            }))
           }
         });
       } catch (error) {
@@ -710,7 +713,11 @@ const setupRoutes = async () => {
 
         res.json({
           success: true,
-          data: stats
+          data: stats.map(item => ({
+            ...item,
+            nombre_etudiants: parseInt(item.nombre_etudiants) || 0,
+            nombre_stages: parseInt(item.nombre_stages) || 0
+          }))
         });
       } catch (error) {
         console.error('[Vercel] Stats filiere error:', error);
@@ -745,7 +752,11 @@ const setupRoutes = async () => {
 
         res.json({
           success: true,
-          data: stats
+          data: stats.map(item => ({
+            ...item,
+            nombre_stages: parseInt(item.nombre_stages) || 0,
+            nombre_offres: parseInt(item.nombre_offres) || 0
+          }))
         });
       } catch (error) {
         console.error('[Vercel] Stats entreprise error:', error);
@@ -1307,6 +1318,121 @@ const setupRoutes = async () => {
         res.status(500).json({
           success: false,
           message: 'Erreur lors de la mise à jour des notifications',
+          error: error.message
+        });
+      }
+    });
+
+    // POST /api/notifications - Créer une nouvelle notification (admin seulement)
+    notificationsRouter.post('/', authenticateNotifications, async (req, res) => {
+      try {
+        // Vérifier que l'utilisateur est admin
+        if (req.user.role !== 'admin') {
+          return res.status(403).json({
+            success: false,
+            message: 'Accès refusé. Seuls les administrateurs peuvent créer des notifications.'
+          });
+        }
+
+        const { destinataire, titre, message } = req.body;
+        console.log('[Vercel] Creating notification:', { destinataire, titre, message });
+
+        if (!destinataire || !destinataire.type || !message || !titre) {
+          return res.status(400).json({
+            success: false,
+            message: 'Le type de destinataire, le titre et le message sont requis.'
+          });
+        }
+
+        const { type, id: destinataireId } = destinataire;
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+
+        let userIdsToNotify = [];
+
+        if (type === 'etudiant') {
+          if (!destinataireId) {
+            return res.status(400).json({
+              success: false,
+              message: 'L\'utilisateur_id est requis pour le type "etudiant".'
+            });
+          }
+          userIdsToNotify.push(destinataireId);
+        } else if (type === 'filiere') {
+          if (!destinataireId) {
+            return res.status(400).json({
+              success: false,
+              message: 'Le filiere_id est requis pour le type "filiere".'
+            });
+          }
+          const { rows: usersInFiliere } = await db.query(
+            "SELECT id FROM public.utilisateurs WHERE role = 'etudiant' AND filiere_id = $1",
+            [destinataireId]
+          );
+          userIdsToNotify = usersInFiliere.map(user => user.id);
+          if (userIdsToNotify.length === 0) {
+            return res.status(404).json({
+              success: false,
+              message: 'Aucun étudiant trouvé pour cette filière.'
+            });
+          }
+        } else if (type === 'tous') {
+          const { rows: allEtudiants } = await db.query(
+            "SELECT id FROM public.utilisateurs WHERE role = 'etudiant'"
+          );
+          userIdsToNotify = allEtudiants.map(user => user.id);
+          if (userIdsToNotify.length === 0) {
+            return res.status(404).json({
+              success: false,
+              message: 'Aucun étudiant trouvé.'
+            });
+          }
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: 'Type de destinataire invalide.'
+          });
+        }
+
+        // Insérer les notifications en base
+        const client = await db.pool.connect();
+        try {
+          await client.query('BEGIN');
+
+          const insertPromises = userIdsToNotify.map(userId => {
+            return client.query(
+              `INSERT INTO public.notifications (utilisateur_id, titre, message)
+               VALUES ($1, $2, $3)
+               RETURNING id`,
+              [userId, titre, message]
+            );
+          });
+
+          const results = await Promise.all(insertPromises);
+          const createdCount = results.reduce((count, result) => count + result.rowCount, 0);
+
+          await client.query('COMMIT');
+
+          res.status(201).json({
+            success: true,
+            message: `${createdCount} notification(s) créée(s) avec succès.`,
+            data: {
+              count: createdCount
+            }
+          });
+
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
+        }
+
+      } catch (error) {
+        console.error('[Vercel] Create notification error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de la création de la notification',
           error: error.message
         });
       }
