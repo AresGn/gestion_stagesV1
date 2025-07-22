@@ -1770,6 +1770,147 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Routes pour les notifications push
+const pushRouter = express.Router();
+
+// Route pour obtenir la clé VAPID publique
+pushRouter.get('/vapid-key', (req, res) => {
+  const publicKey = process.env.VAPID_PUBLIC_KEY;
+  if (!publicKey) {
+    return res.status(500).json({
+      success: false,
+      message: 'Clé VAPID publique non configurée'
+    });
+  }
+
+  res.json({
+    success: true,
+    publicKey: publicKey
+  });
+});
+
+// Route pour s'abonner aux notifications push
+pushRouter.post('/subscribe', authenticateNotifications, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const subscription = req.body;
+
+    if (!subscription || !subscription.endpoint || !subscription.keys) {
+      return res.status(400).json({
+        success: false,
+        message: 'Données d\'abonnement invalides'
+      });
+    }
+
+    const { endpoint, keys } = subscription;
+    const { p256dh, auth } = keys;
+
+    const dbModule = await import('../src/config/db.js');
+    const db = dbModule.default;
+
+    // Vérifier si l'abonnement existe déjà
+    const { rows: existing } = await db.query(
+      'SELECT id FROM push_subscriptions WHERE utilisateur_id = $1 AND endpoint = $2',
+      [userId, endpoint]
+    );
+
+    if (existing.length > 0) {
+      // Mettre à jour l'abonnement existant
+      await db.query(
+        `UPDATE push_subscriptions
+         SET p256dh_key = $1, auth_key = $2, updated_at = CURRENT_TIMESTAMP, is_active = TRUE
+         WHERE utilisateur_id = $3 AND endpoint = $4`,
+        [p256dh, auth, userId, endpoint]
+      );
+    } else {
+      // Créer un nouvel abonnement
+      await db.query(
+        `INSERT INTO push_subscriptions (utilisateur_id, endpoint, p256dh_key, auth_key, user_agent)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [userId, endpoint, p256dh, auth, 'Web Browser']
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Abonnement push enregistré avec succès',
+      data: { userId, endpoint }
+    });
+
+  } catch (error) {
+    console.error('[Vercel] Push subscribe error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'abonnement push',
+      error: error.message
+    });
+  }
+});
+
+// Route pour lister les abonnements push
+pushRouter.get('/subscriptions', authenticateNotifications, async (req, res) => {
+  try {
+    const dbModule = await import('../src/config/db.js');
+    const db = dbModule.default;
+
+    const { rows: subscriptions } = await db.query(`
+      SELECT
+        ps.id,
+        ps.utilisateur_id,
+        ps.endpoint,
+        ps.is_active,
+        ps.created_at,
+        u.nom,
+        u.prenom,
+        u.email
+      FROM push_subscriptions ps
+      JOIN utilisateurs u ON ps.utilisateur_id = u.id
+      WHERE ps.is_active = TRUE
+      ORDER BY ps.created_at DESC
+    `);
+
+    res.json({
+      success: true,
+      data: subscriptions
+    });
+
+  } catch (error) {
+    console.error('[Vercel] Push subscriptions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des abonnements',
+      error: error.message
+    });
+  }
+});
+
+// Route pour tester les notifications push
+pushRouter.post('/test', authenticateNotifications, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { message } = req.body;
+
+    res.json({
+      success: true,
+      message: 'Test de notification push envoyé',
+      results: {
+        userId: userId,
+        testMessage: message || 'Test de notification push'
+      }
+    });
+
+  } catch (error) {
+    console.error('[Vercel] Push test error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du test push',
+      error: error.message
+    });
+  }
+});
+
+app.use('/api/push', pushRouter);
+
 // 404 handler
 app.use((req, res) => {
   console.log(`[Vercel] Route non trouvée: ${req.method} ${req.url}`);
