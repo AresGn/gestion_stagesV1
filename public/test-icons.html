@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test des icônes PWA</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .icon-test {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .icon-test img {
+            max-width: 100px;
+            height: auto;
+            margin: 10px;
+        }
+        .success { border-color: #10b981; background: #f0fdf4; }
+        .error { border-color: #ef4444; background: #fef2f2; }
+        .status { font-weight: bold; margin-bottom: 10px; }
+        .url { font-family: monospace; background: #f3f4f6; padding: 5px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test des icônes PWA</h1>
+    <p>Cette page teste si les icônes sont accessibles correctement.</p>
+    
+    <div id="results"></div>
+    
+    <script>
+        const icons = [
+            { name: 'Icon 192x192', url: '/icons/icon-192x192.png' },
+            { name: 'Icon 512x512', url: '/icons/icon-512x512.png' },
+            { name: 'Apple Touch Icon', url: '/icons/apple-touch-icon.png' },
+            { name: 'Android Chrome 192', url: '/icons/android-chrome-192x192.png' },
+            { name: 'Android Chrome 512', url: '/icons/android-chrome-512x512.png' }
+        ];
+        
+        async function testIcon(icon) {
+            try {
+                const response = await fetch(icon.url);
+                const contentType = response.headers.get('content-type');
+                const isImage = contentType && contentType.startsWith('image/');
+                
+                return {
+                    ...icon,
+                    success: response.ok && isImage,
+                    status: response.status,
+                    contentType: contentType,
+                    size: response.headers.get('content-length')
+                };
+            } catch (error) {
+                return {
+                    ...icon,
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+        
+        async function runTests() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<p>🔄 Test en cours...</p>';
+            
+            const testResults = await Promise.all(icons.map(testIcon));
+            
+            let html = '';
+            testResults.forEach(result => {
+                const cssClass = result.success ? 'success' : 'error';
+                const statusIcon = result.success ? '✅' : '❌';
+                
+                html += `
+                    <div class="icon-test ${cssClass}">
+                        <div class="status">${statusIcon} ${result.name}</div>
+                        <div class="url">${result.url}</div>
+                        <p><strong>Status:</strong> ${result.status || 'Erreur'}</p>
+                        <p><strong>Content-Type:</strong> ${result.contentType || 'Non défini'}</p>
+                        ${result.size ? `<p><strong>Taille:</strong> ${result.size} bytes</p>` : ''}
+                        ${result.error ? `<p><strong>Erreur:</strong> ${result.error}</p>` : ''}
+                        ${result.success ? `<img src="${result.url}" alt="${result.name}" />` : ''}
+                    </div>
+                `;
+            });
+            
+            results.innerHTML = html;
+            
+            // Test du manifest
+            html += await testManifest();
+            results.innerHTML += html;
+        }
+        
+        async function testManifest() {
+            try {
+                const response = await fetch('/manifest.webmanifest');
+                const contentType = response.headers.get('content-type');
+                const isJson = contentType && (contentType.includes('json') || contentType.includes('manifest'));
+                
+                let manifestData = null;
+                if (response.ok) {
+                    manifestData = await response.json();
+                }
+                
+                const cssClass = response.ok && isJson ? 'success' : 'error';
+                const statusIcon = response.ok && isJson ? '✅' : '❌';
+                
+                return `
+                    <div class="icon-test ${cssClass}">
+                        <div class="status">${statusIcon} Manifest Web App</div>
+                        <div class="url">/manifest.webmanifest</div>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Content-Type:</strong> ${contentType || 'Non défini'}</p>
+                        ${manifestData ? `
+                            <p><strong>Nom:</strong> ${manifestData.name}</p>
+                            <p><strong>Icônes:</strong> ${manifestData.icons?.length || 0}</p>
+                        ` : ''}
+                    </div>
+                `;
+            } catch (error) {
+                return `
+                    <div class="icon-test error">
+                        <div class="status">❌ Manifest Web App</div>
+                        <div class="url">/manifest.webmanifest</div>
+                        <p><strong>Erreur:</strong> ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Lancer les tests au chargement
+        document.addEventListener('DOMContentLoaded', runTests);
+    </script>
+</body>
+</html>

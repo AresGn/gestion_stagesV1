@@ -36,7 +36,24 @@
       }
     },
     {
-      "src": "/(manifest\\.json|icon-.*\\.png|favicon\\.ico)",
+      "src": "/icons/(.*\\.(png|ico|svg|webp))",
+      "dest": "/icons/$1",
+      "headers": {
+        "cache-control": "public, max-age=86400",
+        "content-type": "image/png"
+      }
+    },
+    {
+      "src": "/(manifest\\.webmanifest|manifest\\.json)",
+      "dest": "/$1",
+      "headers": {
+        "cache-control": "public, max-age=86400",
+        "content-type": "application/manifest+json"
+      }
+    },
+    {
+      "src": "/(favicon\\.ico|.*\\.png)",
+      "dest": "/$1",
       "headers": {
         "cache-control": "public, max-age=86400"
       }
