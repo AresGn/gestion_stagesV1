@@ -1885,14 +1885,15 @@ const setupRoutes = async () => {
       }
     });
 
-    // Route pour récupérer les filières (publique)
+    // Route pour récupérer les filières (publique) - CORRIGÉE
     projetsPublicsRouter.get('/filieres', async (req, res) => {
       try {
         const dbModule = await import('../src/config/db.js');
         const db = dbModule.default;
 
+        // Requête corrigée sans la colonne description qui n'existe pas
         const { rows: filieres } = await db.query(`
-          SELECT id, nom, description
+          SELECT id, nom
           FROM public.filieres
           ORDER BY nom
         `);
@@ -1937,9 +1938,24 @@ const setupRoutes = async () => {
         const dbModule = await import('../src/config/db.js');
         const db = dbModule.default;
 
+        // Vérifier d'abord la structure de la table
+        const { rows: columns } = await db.query(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'filieres' AND table_schema = 'public'
+        `);
+
+        console.log('[Vercel] Colonnes disponibles dans filieres:', columns.map(c => c.column_name));
+
+        // Requête adaptée selon les colonnes disponibles
+        const hasDescription = columns.some(c => c.column_name === 'description');
+
+        const selectClause = hasDescription ?
+          'SELECT id, nom, description FROM public.filieres' :
+          'SELECT id, nom FROM public.filieres';
+
         const { rows: filieres } = await db.query(`
-          SELECT id, nom, description
-          FROM public.filieres
+          ${selectClause}
           ORDER BY nom
         `);
 
