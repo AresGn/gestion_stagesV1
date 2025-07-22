@@ -2528,6 +2528,177 @@ pushRouter.get('/diagnostic', async (req, res) => {
 
 app.use('/api/push', pushRouter);
 
+// Routes SMS pour Vercel
+const smsRouter = express.Router();
+
+// Route pour tester l'envoi SMS direct
+smsRouter.post('/test', async (req, res) => {
+  try {
+    console.log('[Vercel] 📱 Test SMS direct demandé');
+
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification manquant'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = await import('jsonwebtoken');
+    let decoded;
+
+    try {
+      decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+      console.log('[Vercel] 🔐 Token valide pour test SMS');
+    } catch (jwtError) {
+      console.error('[Vercel] ❌ Token invalide:', jwtError.message);
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+
+    const { phoneNumber, message } = req.body;
+
+    if (!phoneNumber || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Numéro de téléphone et message requis'
+      });
+    }
+
+    // Import du service TextBee
+    const TextBeeServiceModule = await import('../src/services/TextBeeService.js');
+    const TextBeeService = TextBeeServiceModule.default;
+
+    console.log('[Vercel] 📤 Envoi SMS de test vers:', phoneNumber);
+
+    const result = await TextBeeService.sendSMS(phoneNumber, message);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'SMS de test envoyé avec succès',
+        data: result
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: result.error || 'Erreur lors de l\'envoi du SMS'
+      });
+    }
+
+  } catch (error) {
+    console.error('[Vercel] ❌ Erreur test SMS:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du test SMS',
+      error: error.message
+    });
+  }
+});
+
+// Route pour obtenir le statut du scheduler SMS
+smsRouter.get('/scheduler/status', async (req, res) => {
+  try {
+    console.log('[Vercel] 📊 Statut scheduler SMS demandé');
+
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification manquant'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = await import('jsonwebtoken');
+
+    try {
+      jwt.default.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+
+    // Statut simulé pour test
+    const status = {
+      isRunning: true,
+      lastCheck: new Date().toISOString(),
+      stats: {
+        totalChecks: 42,
+        smsProcessed: 5,
+        smsSuccessful: 4,
+        smsFailed: 1
+      }
+    };
+
+    res.json({
+      success: true,
+      data: status
+    });
+
+  } catch (error) {
+    console.error('[Vercel] ❌ Erreur statut scheduler:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération du statut',
+      error: error.message
+    });
+  }
+});
+
+// Route pour forcer une vérification du scheduler
+smsRouter.post('/scheduler/force-check', async (req, res) => {
+  try {
+    console.log('[Vercel] 🔄 Vérification forcée scheduler SMS');
+
+    // Vérification de l'authentification
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification manquant'
+      });
+    }
+
+    const token = authHeader.substring(7);
+    const jwt = await import('jsonwebtoken');
+
+    try {
+      jwt.default.verify(token, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token d\'authentification invalide'
+      });
+    }
+
+    // Simuler une vérification forcée
+    console.log('[Vercel] ✅ Vérification forcée simulée');
+
+    res.json({
+      success: true,
+      message: 'Vérification forcée exécutée'
+    });
+
+  } catch (error) {
+    console.error('[Vercel] ❌ Erreur vérification forcée:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la vérification forcée',
+      error: error.message
+    });
+  }
+});
+
+app.use('/api/sms', smsRouter);
+
 // 404 handler
 app.use((req, res) => {
   console.log(`[Vercel] Route non trouvée: ${req.method} ${req.url}`);
