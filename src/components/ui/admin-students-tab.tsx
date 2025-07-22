@@ -523,10 +523,19 @@ export function AdminStudentsTab() {
       }
       
       const data = await response.json();
-      
+
       if (data.success) {
-        setStudents(data.data.etudiants);
-        setPagination(data.data.pagination);
+        // Gérer les deux formats possibles de retour
+        const etudiants = data.data.etudiants || data.data || [];
+        const pagination = data.data.pagination || data.pagination || {
+          total: etudiants.length,
+          page: 1,
+          limit: 10,
+          totalPages: Math.ceil(etudiants.length / 10)
+        };
+
+        setStudents(etudiants);
+        setPagination(pagination);
       }
     } catch (err) {
       console.error('Erreur:', err);
@@ -539,35 +548,27 @@ export function AdminStudentsTab() {
   // Fonction pour charger les filières
   const fetchFilieres = async () => {
     try {
-      // Cette requête pourrait être implémentée dans un contrôleur dédié
-      // Pour l'instant, nous utilisons les filières stockées dans les paramètres
-      const response = await fetch('/api/admin/parametres/filiere', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
+      // Utiliser la nouvelle route publique pour les filières
+      const response = await fetch('/api/filieres');
+
       if (!response.ok) {
         throw new Error('Erreur lors du chargement des filières');
       }
-      
-      const data = await response.json();
-      
-      if (data.success && data.data) {
-        // Extraire les informations des filières
-        const filieresData = data.data.map((param: any) => ({
-          id: param.filiere_id,
-          nom: param.filiere_nom
-        }));
-        
-        setFilieres(filieresData);
+
+      const filieres = await response.json();
+
+      // La route /api/filieres retourne directement un tableau de filières
+      if (Array.isArray(filieres)) {
+        setFilieres(filieres);
       } else {
-        console.error('Format de données invalide:', data);
+        console.error('Format de données invalide:', filieres);
         throw new Error('Format de données invalide pour les filières');
       }
     } catch (err) {
       console.error('Erreur lors du chargement des filières:', err);
-      setError(`Impossible de charger les filières: ${err instanceof Error ? err.message : 'Erreur inconnue'}`);
+      // Ne pas bloquer l'interface si les filières ne se chargent pas
+      setFilieres([]);
+      console.warn('Filières non disponibles, continuons sans filtrage par filière');
     }
   };
 
@@ -590,7 +591,7 @@ export function AdminStudentsTab() {
 
   // Récupérer les données lorsque les filtres changent
   useEffect(() => {
-    if (pagination.page > 0 && filieres.length > 0) {
+    if (pagination.page > 0) {
       fetchStudents();
     }
   }, [pagination.page, pagination.limit, filterFiliere, filterStatut, filterEntreprise, filterMaitreStage, filterMaitreMemoire, sortField, sortOrder]);

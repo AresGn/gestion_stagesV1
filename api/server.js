@@ -1903,6 +1903,21 @@ const setupRoutes = async () => {
       }
     });
 
+    // Route de test pour diagnostiquer les problèmes de routage
+    app.get('/api/test-routes', (req, res) => {
+      res.json({
+        success: true,
+        message: 'Routes de test disponibles',
+        routes: {
+          filieres: '/api/filieres',
+          entreprises: '/api/entreprises',
+          propositions_stages: '/api/propositions-stages',
+          propositions_themes: '/api/propositions-themes'
+        },
+        timestamp: new Date().toISOString()
+      });
+    });
+
     app.use('/api', projetsPublicsRouter);
     console.log('[Vercel] /api (projets publics) routes configured.');
 
