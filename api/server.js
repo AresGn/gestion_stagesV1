@@ -2183,6 +2183,70 @@ pushRouter.post('/clean-subscriptions', async (req, res) => {
   }
 });
 
+// Route de diagnostic pour identifier le problème exact
+pushRouter.get('/diagnostic', async (req, res) => {
+  try {
+    console.log('[Vercel] 🔍 Diagnostic push notifications');
+
+    const diagnostic = {
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      vapid: {
+        publicKey: !!process.env.VAPID_PUBLIC_KEY,
+        privateKey: !!process.env.VAPID_PRIVATE_KEY,
+        subject: !!process.env.VAPID_SUBJECT
+      },
+      database: !!process.env.DATABASE_URL,
+      jwt: !!process.env.JWT_SECRET
+    };
+
+    // Test import web-push
+    try {
+      const webpush = await import('web-push');
+      diagnostic.webpush = {
+        imported: true,
+        version: webpush.default ? 'default available' : 'no default'
+      };
+    } catch (webpushError) {
+      diagnostic.webpush = {
+        imported: false,
+        error: webpushError.message
+      };
+    }
+
+    // Test import database
+    try {
+      const dbModule = await import('../src/config/db.js');
+      diagnostic.database_import = {
+        imported: true,
+        hasDefault: !!dbModule.default
+      };
+    } catch (dbError) {
+      diagnostic.database_import = {
+        imported: false,
+        error: dbError.message
+      };
+    }
+
+    console.log('[Vercel] 📊 Diagnostic complet:', diagnostic);
+
+    res.json({
+      success: true,
+      message: 'Diagnostic des notifications push',
+      data: diagnostic
+    });
+
+  } catch (error) {
+    console.error('[Vercel] ❌ Erreur diagnostic:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du diagnostic',
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 app.use('/api/push', pushRouter);
 
 // 404 handler

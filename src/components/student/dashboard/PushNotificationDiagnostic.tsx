@@ -173,6 +173,29 @@ const PushNotificationDiagnostic: React.FC = () => {
     }
   };
 
+  const handleDiagnosticPush = async () => {
+    setIsLoading(true);
+    try {
+      console.log('🔍 Diagnostic push complet');
+
+      const response = await fetch('/api/push/diagnostic');
+      const result = await response.json();
+
+      console.log('🔍 Diagnostic push résultat:', result);
+
+      if (response.ok) {
+        showMessage(`✅ Diagnostic: VAPID=${result.data.vapid.publicKey ? 'OK' : 'KO'}, DB=${result.data.database ? 'OK' : 'KO'}, WebPush=${result.data.webpush.imported ? 'OK' : 'KO'}`, 'success');
+      } else {
+        showMessage(`❌ Erreur diagnostic: ${result.message}`, 'error');
+      }
+    } catch (error) {
+      console.error('🔍 Erreur diagnostic push:', error);
+      showMessage(`❌ Diagnostic échoué: ${error instanceof Error ? error.message : 'Erreur inconnue'}`, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getStatusColor = (status: boolean | string) => {
     if (typeof status === 'boolean') {
       return status ? 'text-green-600' : 'text-red-600';
@@ -303,6 +326,15 @@ const PushNotificationDiagnostic: React.FC = () => {
           className="w-full bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 disabled:opacity-50"
         >
           {isLoading ? '⏳ Test...' : '🔗 Tester Connectivité API'}
+        </button>
+
+        {/* Diagnostic Push complet */}
+        <button
+          onClick={handleDiagnosticPush}
+          disabled={isLoading}
+          className="w-full bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 disabled:opacity-50"
+        >
+          {isLoading ? '⏳ Diagnostic...' : '🔍 Diagnostic Push Complet'}
         </button>
 
         {notificationPermission !== 'granted' && (
