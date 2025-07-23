@@ -1,6 +1,7 @@
 import express from 'express';
 import { body, validationResult } from 'express-validator';
-import pool from '../config/db.js';
+import db from '../config/db.js';
+const { pool } = db;
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -19,7 +20,7 @@ router.get('/user/:userId', protect, async (req, res) => {
     }
 
     // Récupérer les informations de stage
-    const { rows: stages } = await pool.query(`
+    const { rows: stages } = await db.query(`
       SELECT s.*, e.nom as nom_entreprise, e.departement, e.commune, e.quartier,
              ms.nom as nom_maitre_stage, ms.prenom as prenom_maitre_stage, 
              ms.telephone as telephone_maitre_stage, ms.email as email_maitre_stage, 
