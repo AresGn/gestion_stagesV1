@@ -524,7 +524,7 @@ const setupRoutes = async () => {
 
         const dbModule = await import('../src/config/db.js');
         const db = dbModule.default;
-        const client = await db.connect();
+        const client = await db.pool.connect();
 
         try {
           await client.query('BEGIN');
