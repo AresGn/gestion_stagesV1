@@ -1997,22 +1997,26 @@ const setupRoutes = async () => {
   }
 };
 
-// Setup routes de manière asynchrone
-setupRoutes().catch(console.error);
+// Setup routes et démarrer le scheduler de manière asynchrone
+async function initializeServer() {
+  try {
+    await setupRoutes();
 
-// Démarrer le SMS Scheduler pour test (15 secondes)
-console.log('[Vercel] Démarrage du SMS Scheduler TEST (15 secondes)...');
-try {
-  const SMSSchedulerModule = await import('../src/schedulers/SMSScheduler.js');
-  if (SMSSchedulerModule && SMSSchedulerModule.default) {
-    SMSSchedulerModule.default.start();
-    console.log('✅ SMS Scheduler TEST démarré avec succès (délai 15s, vérification 10s)');
-  } else {
-    console.error('❌ Impossible de charger le SMS Scheduler');
+    // Démarrer le SMS Scheduler pour test (10 secondes)
+    console.log('[Vercel] Démarrage du SMS Scheduler TEST (10 secondes)...');
+    const SMSSchedulerModule = await import('../src/schedulers/SMSScheduler.js');
+    if (SMSSchedulerModule && SMSSchedulerModule.default) {
+      SMSSchedulerModule.default.start();
+      console.log('✅ SMS Scheduler TEST démarré avec succès (délai 10s, vérification 10s)');
+    } else {
+      console.error('❌ Impossible de charger le SMS Scheduler');
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'initialisation:', error.message);
   }
-} catch (error) {
-  console.error('❌ Erreur lors du démarrage du SMS Scheduler:', error.message);
 }
+
+initializeServer();
 
 // Error handling middleware
 app.use((err, req, res, next) => {
