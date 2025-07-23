@@ -287,7 +287,7 @@ const AdminNotificationsTab: React.FC = () => {
         body: JSON.stringify({
           destinataire: {
             type: 'etudiant',
-            matricule: '78004STI22'
+            id: 30  // ID de l'étudiant 78004STI22 (MAMA Aziz)
           },
           titre: '🧪 Test SMS Automatique',
           message: `Test de notification avec SMS automatique après 10 secondes si non lue. Envoyé à ${new Date().toLocaleTimeString()}`

@@ -15,8 +15,8 @@ dotenv.config();
 const API_KEY = process.env.TEXTBEE_API_KEY || 'YOUR_API_KEY';
 const DEVICE_ID = process.env.TEXTBEE_DEVICE_ID || 'YOUR_DEVICE_ID';
 
-// Numéro de test
-const TEST_PHONE_NUMBER = '+229 51885851';
+// Numéro de test - MAMA Aziz (78004STI22) en format international
+const TEST_PHONE_NUMBER = '+229 43053098';
 
 async function testSMSDirect() {
   console.log('📱 Test SMS Direct avec TextBee API');
