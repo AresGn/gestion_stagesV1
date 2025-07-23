@@ -482,6 +482,155 @@ const setupRoutes = async () => {
       }
     });
 
+    // Route pour soumettre/modifier les informations de stage
+    internshipsRouter.post('/submit', authenticateToken, async (req, res) => {
+      try {
+        console.log('[Vercel] 📝 Soumission formulaire stage');
+
+        const {
+          departement,
+          commune,
+          quartier,
+          nomEntreprise,
+          dateDebutStage,
+          dateFinStage,
+          themeMemoire,
+          nomMaitreStage,
+          prenomMaitreStage,
+          telephoneMaitreStage,
+          emailMaitreStage,
+          fonctionMaitreStage,
+          nomMaitreMemoire,
+          telephoneMaitreMemoire,
+          emailMaitreMemoire,
+          statutMaitreMemoire
+        } = req.body;
+
+        // Validation des champs requis
+        if (!departement || !commune || !quartier || !nomEntreprise || !dateDebutStage || !themeMemoire) {
+          return res.status(400).json({
+            success: false,
+            message: 'Tous les champs obligatoires doivent être remplis',
+            errors: [
+              { path: 'departement', msg: 'Le département est requis' },
+              { path: 'commune', msg: 'La commune est requise' },
+              { path: 'quartier', msg: 'Le quartier est requis' },
+              { path: 'nomEntreprise', msg: 'Le nom de l\'entreprise est requis' },
+              { path: 'dateDebutStage', msg: 'La date de début est requise' },
+              { path: 'themeMemoire', msg: 'Le thème de mémoire est requis' }
+            ]
+          });
+        }
+
+        const dbModule = await import('../src/config/db.js');
+        const db = dbModule.default;
+        const client = await db.connect();
+
+        try {
+          await client.query('BEGIN');
+
+          // 1. Créer ou récupérer l'entreprise
+          let entrepriseResult = await client.query(
+            'SELECT id FROM entreprises WHERE nom = $1',
+            [nomEntreprise]
+          );
+
+          let entrepriseId;
+          if (entrepriseResult.rows.length === 0) {
+            const newEntreprise = await client.query(
+              'INSERT INTO entreprises (nom, departement, commune, quartier) VALUES ($1, $2, $3, $4) RETURNING id',
+              [nomEntreprise, departement, commune, quartier]
+            );
+            entrepriseId = newEntreprise.rows[0].id;
+          } else {
+            entrepriseId = entrepriseResult.rows[0].id;
+          }
+
+          // 2. Créer ou récupérer le maître de stage
+          let maitreStageId = null;
+          if (nomMaitreStage && prenomMaitreStage) {
+            let maitreStageResult = await client.query(
+              'SELECT id FROM maitres_stage WHERE nom = $1 AND prenom = $2 AND entreprise_id = $3',
+              [nomMaitreStage, prenomMaitreStage, entrepriseId]
+            );
+
+            if (maitreStageResult.rows.length === 0) {
+              const newMaitreStage = await client.query(
+                'INSERT INTO maitres_stage (nom, prenom, telephone, email, fonction, entreprise_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+                [nomMaitreStage, prenomMaitreStage, telephoneMaitreStage, emailMaitreStage, fonctionMaitreStage, entrepriseId]
+              );
+              maitreStageId = newMaitreStage.rows[0].id;
+            } else {
+              maitreStageId = maitreStageResult.rows[0].id;
+            }
+          }
+
+          // 3. Créer ou récupérer le maître de mémoire
+          let maitreMemoireId = null;
+          if (nomMaitreMemoire) {
+            let maitreMemoireResult = await client.query(
+              'SELECT id FROM maitres_memoire WHERE nom = $1',
+              [nomMaitreMemoire]
+            );
+
+            if (maitreMemoireResult.rows.length === 0) {
+              const newMaitreMemoire = await client.query(
+                'INSERT INTO maitres_memoire (nom, telephone, email, statut) VALUES ($1, $2, $3, $4) RETURNING id',
+                [nomMaitreMemoire, telephoneMaitreMemoire, emailMaitreMemoire, statutMaitreMemoire]
+              );
+              maitreMemoireId = newMaitreMemoire.rows[0].id;
+            } else {
+              maitreMemoireId = maitreMemoireResult.rows[0].id;
+            }
+          }
+
+          // 4. Vérifier si un stage existe déjà pour cet étudiant
+          const existingStage = await client.query(
+            'SELECT id FROM stages WHERE etudiant_id = $1',
+            [req.user.id]
+          );
+
+          if (existingStage.rows.length === 0) {
+            // Créer un nouveau stage
+            await client.query(
+              'INSERT INTO stages (etudiant_id, entreprise_id, maitre_stage_id, maitre_memoire_id, date_debut, date_fin, theme_memoire) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+              [req.user.id, entrepriseId, maitreStageId, maitreMemoireId, dateDebutStage, dateFinStage || null, themeMemoire]
+            );
+          } else {
+            // Mettre à jour le stage existant
+            const stageId = existingStage.rows[0].id;
+            await client.query(
+              'UPDATE stages SET entreprise_id = $1, maitre_stage_id = $2, maitre_memoire_id = $3, date_debut = $4, date_fin = $5, theme_memoire = $6 WHERE id = $7',
+              [entrepriseId, maitreStageId, maitreMemoireId, dateDebutStage, dateFinStage || null, themeMemoire, stageId]
+            );
+          }
+
+          await client.query('COMMIT');
+
+          console.log('[Vercel] ✅ Stage enregistré avec succès pour utilisateur:', req.user.id);
+
+          res.status(200).json({
+            success: true,
+            message: 'Informations de stage enregistrées avec succès'
+          });
+
+        } catch (dbError) {
+          await client.query('ROLLBACK');
+          throw dbError;
+        } finally {
+          client.release();
+        }
+
+      } catch (error) {
+        console.error('[Vercel] ❌ Erreur soumission stage:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Erreur lors de l\'enregistrement des informations de stage',
+          error: error.message
+        });
+      }
+    });
+
     app.use('/api/internships', internshipsRouter);
     console.log('[Vercel] /api/internships routes configured.');
 
