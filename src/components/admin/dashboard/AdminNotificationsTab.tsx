@@ -71,14 +71,15 @@ const AdminNotificationsTab: React.FC = () => {
   const [errorUsers, setErrorUsers] = useState<string | null>(null); // Erreur pour les utilisateurs
   const [formError, setFormError] = useState<string | null>(null);
 
-  const API_BASE_URL = '/api/admin'; // Ajustez si nécessaire
+  const API_BASE_URL = '/api'; // Base URL pour toutes les API
+  const ADMIN_API_BASE_URL = '/api/admin'; // URL spécifique pour les API admin
 
   const fetchNotificationsHistory = useCallback(async (token: string | null) => { // Ajout du token
     setIsLoading(true);
     setError(null);
     if (!token) { setError('Token manquant'); setIsLoading(false); return; }
     try {
-      const response = await fetch(`${API_BASE_URL}/notifications`, {
+      const response = await fetch(`${ADMIN_API_BASE_URL}/notifications`, {
         headers: { 'Authorization': `Bearer ${token}` } // Ajout du token
       });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -123,7 +124,7 @@ const AdminNotificationsTab: React.FC = () => {
 
     const delayDebounceFn = setTimeout(async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/etudiants/search?term=${encodeURIComponent(searchTerm)}`, {
+        const response = await fetch(`${ADMIN_API_BASE_URL}/etudiants/search?term=${encodeURIComponent(searchTerm)}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -149,7 +150,7 @@ const AdminNotificationsTab: React.FC = () => {
     }, 500); // Délai de 500ms
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, API_BASE_URL]);
+  }, [searchTerm, ADMIN_API_BASE_URL]);
 
   const handleUserSelect = (user: User) => {
     setNewNotification(prev => ({
@@ -232,7 +233,7 @@ const AdminNotificationsTab: React.FC = () => {
     
     try {
       // Le payload est maintenant directement newNotification
-      const response = await fetch(`${API_BASE_URL}/notifications`, {
+      const response = await fetch(`${ADMIN_API_BASE_URL}/notifications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(newNotification),
