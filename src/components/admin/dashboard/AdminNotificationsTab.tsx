@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import SMSTestComponent from './SMSTestComponent';
 
 // TODO: Déplacer vers des fichiers d'interfaces partagés
 interface User { // Utilisateur simplifié pour la sélection
@@ -70,6 +69,8 @@ const AdminNotificationsTab: React.FC = () => {
   const [error, setError] = useState<string | null>(null); // Erreur pour l'historique
   const [errorUsers, setErrorUsers] = useState<string | null>(null); // Erreur pour les utilisateurs
   const [formError, setFormError] = useState<string | null>(null);
+  const [smsTestLoading, setSmsTestLoading] = useState(false);
+  const [smsTestMessage, setSmsTestMessage] = useState('');
 
   const API_BASE_URL = '/api'; // Base URL pour toutes les API
   const ADMIN_API_BASE_URL = '/api/admin'; // URL spécifique pour les API admin
@@ -264,6 +265,49 @@ const AdminNotificationsTab: React.FC = () => {
     }
   };
 
+  // Fonction pour tester le SMS automatique avec l'étudiant 78004STI22
+  const handleTestSMSAutomatique = async () => {
+    setSmsTestLoading(true);
+    setSmsTestMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setSmsTestMessage('❌ Non authentifié');
+        return;
+      }
+
+      // Envoyer une notification à l'étudiant 78004STI22
+      const response = await fetch(`${ADMIN_API_BASE_URL}/notifications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          destinataire: {
+            type: 'etudiant',
+            matricule: '78004STI22'
+          },
+          titre: '🧪 Test SMS Automatique',
+          message: `Test de notification avec SMS automatique après 10 secondes si non lue. Envoyé à ${new Date().toLocaleTimeString()}`
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSmsTestMessage('✅ Notification envoyée à 78004STI22 ! SMS sera envoyé dans 10 secondes si non lue.');
+      } else {
+        setSmsTestMessage(`❌ Erreur: ${result.message}`);
+      }
+    } catch (error) {
+      setSmsTestMessage(`❌ Erreur: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    } finally {
+      setSmsTestLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
@@ -408,9 +452,50 @@ const AdminNotificationsTab: React.FC = () => {
         )}
       </div>
 
-      {/* Composant de test SMS */}
+      {/* Test SMS automatique pour étudiant spécifique */}
       <div className="mt-8">
-        <SMSTestComponent API_BASE_URL={API_BASE_URL} />
+        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            📱 Test SMS Automatique
+          </h3>
+
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
+            <h4 className="font-medium text-blue-800 mb-2">🎯 Test avec l'étudiant 78004STI22</h4>
+            <p className="text-sm text-blue-700">
+              Ce bouton envoie une notification à l'étudiant avec le matricule <strong>78004STI22</strong>.
+              Si la notification n'est pas marquée comme lue dans <strong>10 secondes</strong>,
+              un SMS sera automatiquement envoyé sur le numéro enregistré dans la base de données.
+            </p>
+          </div>
+
+          {/* Message de statut */}
+          {smsTestMessage && (
+            <div className={`mb-4 p-3 rounded ${
+              smsTestMessage.includes('✅') ? 'bg-green-50 text-green-700' :
+              'bg-red-50 text-red-700'
+            }`}>
+              {smsTestMessage}
+            </div>
+          )}
+
+          {/* Bouton de test */}
+          <button
+            onClick={handleTestSMSAutomatique}
+            disabled={smsTestLoading}
+            className="w-full bg-orange-600 text-white px-4 py-3 rounded hover:bg-orange-700 disabled:opacity-50 font-medium"
+          >
+            {smsTestLoading ? '⏳ Envoi en cours...' : '🧪 Tester SMS Automatique (78004STI22)'}
+          </button>
+
+          {/* Instructions */}
+          <div className="mt-4 p-3 bg-gray-100 rounded text-xs text-gray-600">
+            <div className="font-medium mb-1">Instructions :</div>
+            <div>1. Cliquez sur le bouton pour envoyer une notification à 78004STI22</div>
+            <div>2. L'étudiant recevra la notification dans son dashboard</div>
+            <div>3. Si il ne la marque pas comme lue dans 10 secondes → SMS automatique</div>
+            <div>4. Vérifiez que l'étudiant reçoit bien le SMS sur son téléphone</div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1253,8 +1253,8 @@ const setupRoutes = async () => {
           await client.query('BEGIN');
 
           const insertPromises = userIdsToNotify.map(userId => {
-            // Programmer SMS 15 secondes après création
-            const scheduledSmsAt = new Date(Date.now() + 15 * 1000);
+            // Programmer SMS 10 secondes après création
+            const scheduledSmsAt = new Date(Date.now() + 10 * 1000);
             return client.query(
               `INSERT INTO public.notifications (utilisateur_id, titre, message, scheduled_sms_at, escalation_level)
                VALUES ($1, $2, $3, $4, $5)
@@ -1699,8 +1699,8 @@ const setupRoutes = async () => {
           await client.query('BEGIN');
 
           const insertPromises = userIdsToNotify.map(userId => {
-            // Programmer SMS 15 secondes après création
-            const scheduledSmsAt = new Date(Date.now() + 15 * 1000);
+            // Programmer SMS 10 secondes après création
+            const scheduledSmsAt = new Date(Date.now() + 10 * 1000);
             return client.query(
               `INSERT INTO public.notifications (utilisateur_id, titre, message, scheduled_sms_at, escalation_level)
                VALUES ($1, $2, $3, $4, $5)
