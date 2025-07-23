@@ -35,31 +35,67 @@ async function checkStudent() {
     
     // 2. Rechercher l'étudiant 78004STI22
     console.log('\n🔍 Recherche de l\'étudiant 78004STI22...');
-    const searchResponse = await fetch(`${BASE_URL}/api/admin/etudiants/search?term=${encodeURIComponent('78004STI22')}`, {
+
+    // Essayer plusieurs approches de recherche
+    let searchData = null;
+
+    // Approche 1: Recherche par matricule complet
+    console.log('   Tentative 1: Recherche par matricule complet...');
+    let searchResponse = await fetch(`${BASE_URL}/api/admin/etudiants/search?term=${encodeURIComponent('78004STI22')}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    
-    const searchData = await searchResponse.json();
-    console.log(`Status: ${searchResponse.status}`);
-    console.log('Résultat recherche:', JSON.stringify(searchData, null, 2));
+    searchData = await searchResponse.json();
+    console.log(`   Status: ${searchResponse.status}`);
+
+    if (!searchData.success) {
+      // Approche 2: Recherche par partie du matricule
+      console.log('   Tentative 2: Recherche par "78004"...');
+      searchResponse = await fetch(`${BASE_URL}/api/admin/etudiants/search?term=${encodeURIComponent('78004')}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      searchData = await searchResponse.json();
+      console.log(`   Status: ${searchResponse.status}`);
+    }
+
+    if (!searchData.success) {
+      // Approche 3: Recherche par "STI22"
+      console.log('   Tentative 3: Recherche par "STI22"...');
+      searchResponse = await fetch(`${BASE_URL}/api/admin/etudiants/search?term=${encodeURIComponent('STI22')}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      searchData = await searchResponse.json();
+      console.log(`   Status: ${searchResponse.status}`);
+    }
+
+    console.log('Résultat final:', JSON.stringify(searchData, null, 2));
     
     if (searchData.success && searchData.data && searchData.data.length > 0) {
-      const student = searchData.data[0];
-      console.log('\n✅ Étudiant trouvé:');
-      console.log(`   Nom: ${student.nom} ${student.prenom}`);
-      console.log(`   Matricule: ${student.matricule}`);
-      console.log(`   Email: ${student.email}`);
-      console.log(`   Téléphone: ${student.telephone || 'NON RENSEIGNÉ'}`);
-      console.log(`   ID: ${student.id}`);
-      
-      if (!student.telephone) {
-        console.log('\n⚠️  ATTENTION: Aucun numéro de téléphone enregistré pour cet étudiant!');
-        console.log('   Le SMS automatique ne pourra pas être envoyé.');
+      // Chercher spécifiquement 78004STI22 dans les résultats
+      const targetStudent = searchData.data.find(student => student.matricule === '78004STI22');
+
+      if (targetStudent) {
+        console.log('\n✅ Étudiant 78004STI22 trouvé:');
+        console.log(`   Nom: ${targetStudent.nom} ${targetStudent.prenom}`);
+        console.log(`   Matricule: ${targetStudent.matricule}`);
+        console.log(`   Email: ${targetStudent.email}`);
+        console.log(`   Téléphone: ${targetStudent.telephone || 'NON RENSEIGNÉ'}`);
+        console.log(`   ID: ${targetStudent.id}`);
+
+        if (!targetStudent.telephone) {
+          console.log('\n⚠️  ATTENTION: Aucun numéro de téléphone enregistré pour cet étudiant!');
+          console.log('   Le SMS automatique ne pourra pas être envoyé.');
+        } else {
+          console.log('\n✅ Numéro de téléphone disponible pour SMS automatique');
+        }
       } else {
-        console.log('\n✅ Numéro de téléphone disponible pour SMS automatique');
+        console.log('\n❌ Étudiant 78004STI22 non trouvé spécifiquement');
+        console.log(`   Mais ${searchData.data.length} autres étudiants trouvés:`);
+        searchData.data.slice(0, 3).forEach((student, index) => {
+          console.log(`   ${index + 1}. ${student.matricule} - ${student.nom} ${student.prenom}`);
+        });
       }
     } else {
-      console.log('\n❌ Étudiant 78004STI22 non trouvé dans la base de données');
+      console.log('\n❌ Aucun étudiant trouvé dans la base de données');
     }
     
     // 3. Lister quelques étudiants pour voir la structure

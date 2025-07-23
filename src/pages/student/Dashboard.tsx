@@ -8,7 +8,7 @@ import ProfileTab from '@/components/student/dashboard/ProfileTab';
 import InternshipInfoTab from '@/components/student/dashboard/InternshipInfoTab';
 import FindInternshipTab from '@/components/student/dashboard/FindInternshipTab';
 import NotificationsTab from '@/components/student/dashboard/NotificationsTab';
-import PushNotificationDiagnostic from '@/components/student/dashboard/PushNotificationDiagnostic';
+
 import { usePWASimple } from '@/hooks/usePWASimple';
 
 import { InternshipOffer } from '@/types';
@@ -341,12 +341,7 @@ const StudentDashboard = () => {
                 />
               )}
               {activeTab === 'projets' && <ProjetsTab />}
-              {activeTab === 'notifications' && (
-                <div className="space-y-6">
-                  <NotificationsTab />
-                  <PushNotificationDiagnostic />
-                </div>
-              )}
+              {activeTab === 'notifications' && <NotificationsTab />}
             </>
           )}
         </main>
